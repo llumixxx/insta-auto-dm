@@ -298,7 +298,7 @@ function drawChart(svg, daily) {
   const draw = () => {
     const W = box.clientWidth, H = box.clientHeight, L = 34, B = 24, T = 8, R = 6;
     const max = Math.max(1, ...daily.map((d) => Math.max(d.dm_ok, d.click)));
-    const step = Math.pow(10, Math.floor(Math.log10(max))); const top = Math.ceil(max / step) * step;
+    const raw = max / 4, mag = Math.pow(10, Math.floor(Math.log10(raw))); const step = Math.max(1, [1, 2, 5, 10].find((m) => m * mag >= raw) * mag); const top = step * 4;
     const n = daily.length, cw = (W - L - R) / n, bw = Math.max(1.5, Math.min(14, cw * 0.36));
     const y = (v) => T + (H - T - B) * (1 - v / top);
     const css = getComputedStyle(document.body);
