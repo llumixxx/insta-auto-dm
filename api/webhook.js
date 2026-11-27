@@ -2,7 +2,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { redis, getAccount, getRules, addLog, claimComment, bump, firstTime, enqueueRetry, dueRetries, removeRetry, retryLock } from '../lib/store.js';
 import { send, msgText, msgQuick, msgButton, replyComment, isRateLimit } from '../lib/ig.js';
-import { VERIFY_TOKEN, APP_SECRET, BASE_URL } from '../lib/config.js';
+import { VERIFY_TOKEN, APP_SECRET, BASE_URL, signLink } from '../lib/config.js';
 
 // 웹훅 주소 확인 (메타가 처음 등록할 때 호출)
 export async function GET(request) {
@@ -34,13 +34,15 @@ function track(text, igId, ruleId, who = '') {
     const u = trail ? m.slice(0, -trail.length) : m;
     if (u.startsWith(base)) return m; // 이미 추적 주소
     const full = /^https?:\/\//.test(u) ? u : 'https://' + u;
-    return `${base}/api/r?u=${encodeURIComponent(full)}&a=${igId}&r=${ruleId}${who ? '&c=' + who : ''}` + trail;
+    return trackUrl(full, igId, ruleId, who) + trail;
   });
 }
 
 const fullUrl = (u) => (/^https?:\/\//i.test(u) ? u : 'https://' + u);
-const trackUrl = (u, igId, ruleId, who) =>
-  `${BASE_URL()}/api/r?u=${encodeURIComponent(fullUrl(u))}&a=${igId}&r=${ruleId}${who ? '&c=' + who : ''}`;
+function trackUrl(u, igId, ruleId, who = '') {
+  const full = fullUrl(u);
+  return `${BASE_URL()}/api/r?u=${encodeURIComponent(full)}&a=${igId}&r=${ruleId}${who ? '&c=' + who : ''}&s=${signLink(full, igId, ruleId, who)}`;
+}
 export const modeOf = (r) => r.mode || (r.btnUrl ? 'button' : 'text');
 
 // 링크 (추적 켜져 있으면 추적 주소)

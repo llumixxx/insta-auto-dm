@@ -1,11 +1,11 @@
 import { listAccounts, removeAccount, saveAccount, retryCount } from '../lib/store.js';
 import { processRetries } from './webhook.js';
 import { subscribeComments } from '../lib/ig.js';
-import { json, isAdmin } from '../lib/http.js';
+import { json, adminGate } from '../lib/http.js';
 import { BASE_URL, VERIFY_TOKEN, CONNECT_CODE, APP_ID, APP_SECRET, isUnified } from '../lib/config.js';
 
 export async function GET(request) {
-  if (!isAdmin(request)) return json({ error: '비밀번호가 틀렸어요' }, 401);
+  { const deny = await adminGate(request); if (deny) return deny; }
   const accs = await listAccounts();
   // 예전에 연결한 계정은 DM 버튼 알림(messages·postback)도 구독하도록 한 번 갱신
   await Promise.allSettled(accs.filter((a) => a.subV !== 2).map(async (a) => {
@@ -34,7 +34,7 @@ export async function GET(request) {
 }
 
 export async function DELETE(request) {
-  if (!isAdmin(request)) return json({ error: '비밀번호가 틀렸어요' }, 401);
+  { const deny = await adminGate(request); if (deny) return deny; }
   const igId = new URL(request.url).searchParams.get('igId');
   if (!igId) return json({ error: 'igId 필요' }, 400);
   await removeAccount(igId);

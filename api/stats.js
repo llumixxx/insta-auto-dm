@@ -1,9 +1,9 @@
 import { getStats, getRuleStats, listAccounts, dayKey } from '../lib/store.js';
-import { json, isAdmin } from '../lib/http.js';
+import { json, adminGate } from '../lib/http.js';
 
 // /api/stats?igId=…|all&from=YYYYMMDD&to=YYYYMMDD
 export async function GET(request) {
-  if (!isAdmin(request)) return json({ error: '비밀번호가 틀렸어요' }, 401);
+  { const deny = await adminGate(request); if (deny) return deny; }
   const p = new URL(request.url).searchParams;
   const ok = (s) => /^\d{8}$/.test(s || '');
   const to = ok(p.get('to')) ? p.get('to') : dayKey();
