@@ -1,3 +1,7 @@
 {
-  "crons": [{ "path": "/api/cron-refresh", "schedule": "0 18 * * *" }]
+  "crons": [{ "path": "/api/cron-refresh", "schedule": "0 18 * * *" }],
+  "rewrites": [
+    { "source": "/go/:k/:c", "destination": "/api/r?k=:k&c=:c" },
+    { "source": "/go/:k", "destination": "/api/r?k=:k" }
+  ]
 }

@@ -1,8 +1,8 @@
 // 메타 웹훅: 댓글 → 키워드 확인 → DM(+대댓글)
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { redis, getAccount, getRules, addLog, claimComment, bump, firstTime, enqueueRetry, dueRetries, removeRetry, retryLock } from '../lib/store.js';
-import { send, msgText, msgButton, replyComment, isRateLimit } from '../lib/ig.js';
-import { VERIFY_TOKEN, APP_SECRET, BASE_URL, signLink } from '../lib/config.js';
+import { redis, getAccount, getRules, addLog, claimComment, bump, firstTime, enqueueRetry, dueRetries, removeRetry, retryLock, saveLinks } from '../lib/store.js';
+import { send as rawSend, msgText, msgButton, replyComment, isRateLimit } from '../lib/ig.js';
+import { VERIFY_TOKEN, APP_SECRET, BASE_URL, LINK_BASE, signLink } from '../lib/config.js';
 
 // 웹훅 주소 확인 (메타가 처음 등록할 때 호출)
 export async function GET(request) {
@@ -32,16 +32,25 @@ function track(text, igId, ruleId, who = '') {
     if (text[off - 1] === '@' || /[A-Za-z0-9._%+-]/.test(text[off - 1] || '')) return m; // 이메일·단어 중간은 그대로
     const trail = (m.match(/[.,!?;:)\]]+$/) || [''])[0];
     const u = trail ? m.slice(0, -trail.length) : m;
-    if (u.startsWith(base)) return m; // 이미 추적 주소
+    if (u.startsWith(base) || u.startsWith(LINK_BASE())) return m; // 이미 추적 주소
     const full = /^https?:\/\//.test(u) ? u : 'https://' + u;
     return trackUrl(full, igId, ruleId, who) + trail;
   });
 }
 
 const fullUrl = (u) => (/^https?:\/\//i.test(u) ? u : 'https://' + u);
+// 짧은 추적 링크: {도메인}/go/{키}/{받는사람}-{서명}
+const pending = new Map();
 function trackUrl(u, igId, ruleId, who = '') {
   const full = fullUrl(u);
-  return `${BASE_URL()}/api/r?u=${encodeURIComponent(full)}&a=${igId}&r=${ruleId}${who ? '&c=' + who : ''}&s=${signLink(full, igId, ruleId, who)}`;
+  const k = signLink(full, igId, ruleId).slice(0, 10);
+  pending.set(k, { k, u: full, a: igId, r: ruleId });
+  const tail = who ? `/${who}-${signLink(k, who).slice(0, 6)}` : '';
+  return `${LINK_BASE()}/go/${k}${tail}`;
+}
+async function send(...args) {
+  if (pending.size) { const l = [...pending.values()]; pending.clear(); await saveLinks(l); }
+  return rawSend(...args);
 }
 export const modeOf = (r) => r.mode || (r.btnUrl ? 'button' : 'text');
 
