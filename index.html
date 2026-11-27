@@ -304,8 +304,8 @@ async function openEditor(rule) {
       <div class="chips" id="fKw"><input id="fKwIn" placeholder="예: 정보" enterkeyhint="done"></div></div>
     <div class="f" style="display:flex;flex-direction:column;gap:8px"><b style="font-weight:500">보내는 방식</b>
       <div class="modes" id="fMode">
-        <button type="button" data-mode="text"><b>글자만</b><small>DM 1개 · 긴 글 OK</small></button>
-        <button type="button" data-mode="button"><b>버튼만</b><small>짧은 글 + 링크 버튼</small></button>
+        <button type="button" data-mode="text"><b>글자만</b><small>긴 글 다 보여요 · 짧은 링크</small></button>
+        <button type="button" data-mode="button"><b>버튼만</b><small>한 줄(약 25자)만 보여요 + 링크 버튼</small></button>
         <button type="button" data-mode="two"><b>2번 나눠 보내기</b><small>짧은 안내 → 버튼 누르면 긴 글 + 링크</small></button>
       </div></div>
     <div class="ed">
@@ -398,6 +398,7 @@ async function openEditor(rule) {
     if (r.mode === 'text') { r.btnUrl = ''; }
     if (r.mode === 'button' && !r.btnUrl) return ($('#fErr').textContent = '버튼 링크를 넣어주세요');
     if (r.mode === 'button' && r.dm.length > 640) return ($('#fErr').textContent = '버튼만 보내기는 640자 이하로 줄여주세요');
+    if (r.mode === 'button' && (r.dm.length > 30 || r.dm.includes('\n')) && !confirm('버튼만 모드는 인스타가 첫 줄(약 25자)만 보여주고 나머지는 … 으로 잘라요.\n긴 글이면 "글자만"이나 "2번 나눠 보내기"를 추천해요.\n\n그래도 이대로 저장할까요?')) return;
 
     if (!r.keywords.length) return ($('#fErr').textContent = '키워드를 넣어주세요');
     if (!r.dm) return ($('#fErr').textContent = 'DM 내용을 넣어주세요');
