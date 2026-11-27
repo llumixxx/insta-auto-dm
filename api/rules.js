@@ -11,6 +11,7 @@ const clean = (r) => ({
   dm: String(r.dm || '').slice(0, 1000),
   replies: (r.replies || []).map((k) => String(k).trim()).filter(Boolean).slice(0, 5),
   on: r.on !== false,
+  track: r.track !== false,
 });
 
 export async function GET(request) {

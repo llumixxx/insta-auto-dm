@@ -1,8 +1,8 @@
 // 메타 웹훅: 댓글 → 키워드 확인 → DM(+대댓글)
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { getAccount, getRules, addLog, claimComment } from '../lib/store.js';
+import { getAccount, getRules, addLog, claimComment, bump } from '../lib/store.js';
 import { privateReply, replyComment } from '../lib/ig.js';
-import { VERIFY_TOKEN, APP_SECRET } from '../lib/config.js';
+import { VERIFY_TOKEN, APP_SECRET, BASE_URL } from '../lib/config.js';
 
 // 웹훅 주소 확인 (메타가 처음 등록할 때 호출)
 export async function GET(request) {
@@ -21,6 +21,14 @@ function validSig(raw, header) {
 
 const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, '');
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+// DM 안의 링크를 클릭 추적 링크로 바꿔요 (규칙에서 끄면 원래 링크 그대로)
+function track(text, igId, ruleId) {
+  const base = BASE_URL();
+  if (!base) return text;
+  return text.replace(/https?:\/\/[^\s<>"']+/g, (u) =>
+    u.startsWith(base) ? u : `${base}/api/r?u=${encodeURIComponent(u)}&a=${igId}&r=${ruleId}`);
+}
 
 export async function POST(request) {
   const raw = await request.text();
@@ -55,18 +63,22 @@ async function handleComment(igId, v) {
   if (!rule) return;
   if (!(await claimComment(v.id))) return; // 이미 처리한 댓글
 
+  await bump(igId, rule.id, 'match');
   const log = { user: v.from?.username || '', text: v.text, rule: rule.name || rule.keywords.join(', '), mediaId };
   try {
-    await privateReply(igId, acc.token, v.id, rule.dm);
+    await privateReply(igId, acc.token, v.id, rule.track === false ? rule.dm : track(rule.dm, igId, rule.id));
     log.dm = 'ok';
+    await bump(igId, rule.id, 'dm_ok');
   } catch (e) {
     log.dm = 'fail: ' + e.message;
+    await bump(igId, rule.id, 'dm_fail');
   }
   const replies = (rule.replies || []).filter(Boolean);
   if (replies.length) {
     try {
       await replyComment(acc.token, v.id, pick(replies));
       log.reply = 'ok';
+      await bump(igId, rule.id, 'reply_ok');
     } catch (e) {
       log.reply = 'fail: ' + e.message;
     }
