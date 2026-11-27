@@ -156,7 +156,7 @@ function render() {
   const acc = S.accounts.find((a) => a.igId === S.cur);
   $('#app').innerHTML = `
   <header><h1>자동 DM 관리</h1>
-    <button class="g" id="copyLink">🔗 모델 연결 링크 복사</button>
+    <button class="g" id="copyLink">🔗 모델에게 보낼 카톡 메시지 복사</button>
     <button class="g" id="setupBtn">⚙️ 메타 앱 설정값</button>
     <button class="g" id="logout">로그아웃</button></header>
   ${S.pending ? `<div class="card" style="margin-bottom:12px;border-color:#6b5320;background:#221c0e">⏳ 사용량 한도에 걸린 DM <b>${S.pending}건</b>이 대기 중이에요. 한도가 풀리면 자동으로 다시 보내요 (최대 7일).</div>` : ''}
@@ -179,7 +179,9 @@ function render() {
   <div id="tabBody"></div>
   <p class="muted" style="margin-top:28px">@${esc(acc.username)} 연결 해제하려면 <button class="g" id="delAcc" style="min-height:0;padding:4px 10px;font-size:13px">연결 해제</button></p>` : ''}`;
 
-  $('#copyLink').onclick = async () => { try { await navigator.clipboard.writeText(S.connectUrl); toast('연결 링크 복사됨'); } catch { showText('모델 연결 링크', S.connectUrl); } };
+  $('#copyLink').onclick = async () => {
+    const msg = `[인스타 자동 DM 연결] 1분이면 끝나요!\n\n① 먼저 이 링크 → 위쪽 '테스터 초대' → '수락'\nhttps://www.instagram.com/accounts/manage_access/\n\n② 그다음 이 링크 → 파란 버튼만 누르면 끝\n${S.connectUrl}`;
+    try { await navigator.clipboard.writeText(msg); toast('카톡 메시지 복사됨 — 모델에게 그대로 붙여넣기'); } catch { showText('모델에게 보낼 카톡 메시지', msg); } };
   $('#setupBtn').onclick = showSetup;
   $('#logout').onclick = () => { key = ''; try { localStorage.removeItem('adm'); } catch {} renderLogin(); };
   document.querySelectorAll('[data-acc]').forEach((b) => b.onclick = () => { S.cur = b.dataset.acc; S.media = null; render(); loadTab(); });
