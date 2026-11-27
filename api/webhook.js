@@ -1,7 +1,7 @@
 // 메타 웹훅: 댓글 → 키워드 확인 → DM(+대댓글)
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { redis, getAccount, getRules, addLog, claimComment, bump, firstTime } from '../lib/store.js';
-import { send, msgText, msgQuick, msgButton, replyComment } from '../lib/ig.js';
+import { redis, getAccount, getRules, addLog, claimComment, bump, firstTime, enqueueRetry, dueRetries, removeRetry, retryLock } from '../lib/store.js';
+import { send, msgText, msgQuick, msgButton, replyComment, isRateLimit } from '../lib/ig.js';
 import { VERIFY_TOKEN, APP_SECRET, BASE_URL } from '../lib/config.js';
 
 // 웹훅 주소 확인 (메타가 처음 등록할 때 호출)
@@ -55,13 +55,13 @@ async function sendFirst(igId, token, commentId, rule, who) {
   if (mode === 'two') {
     // ① 긴 본문 + '링크 받기' 빠른 답장 → 누르면 ② 버튼 DM
     const label = rule.openLabel || '링크 받기';
-    try { await send(igId, token, to, msgQuick(textFor(rule.dm, rule, igId, who), label, `R:${rule.id}`)); return '2단계 ①'; } catch {}
-    try { await send(igId, token, to, msgButton(rule.dm.slice(0, 640), [{ type: 'postback', title: label, payload: `R:${rule.id}` }])); return '2단계 ①(버튼)'; } catch {}
+    try { await send(igId, token, to, msgQuick(textFor(rule.dm, rule, igId, who), label, `R:${rule.id}`)); return '2단계 ①'; } catch (e) { if (isRateLimit(e)) throw e; }
+    try { await send(igId, token, to, msgButton(rule.dm.slice(0, 640), [{ type: 'postback', title: label, payload: `R:${rule.id}` }])); return '2단계 ①(버튼)'; } catch (e) { if (isRateLimit(e)) throw e; }
   }
   if ((mode === 'button' || mode === 'two') && rule.btnUrl) {
     const title = rule.btnTitle || '바로가기';
     const text = (mode === 'two' ? rule.dm2 || rule.dm : rule.dm).slice(0, 640);
-    try { await send(igId, token, to, msgButton(text, [{ type: 'web_url', url: linkFor(rule, igId, who), title }])); return '버튼'; } catch {}
+    try { await send(igId, token, to, msgButton(text, [{ type: 'web_url', url: linkFor(rule, igId, who), title }])); return '버튼'; } catch (e) { if (isRateLimit(e)) throw e; }
     await send(igId, token, to, msgText(`${textFor(rule.dm, rule, igId, who)}\n\n${title}: ${linkFor(rule, igId, who)}`));
     return '글자 링크';
   }
@@ -85,7 +85,43 @@ export async function POST(request) {
     for (const m of entry.messaging || []) jobs.push(handleMessaging(String(entry.id), m));
   }
   await Promise.allSettled(jobs);
+  try { await processRetries(); } catch {}
   return new Response('ok');
+}
+
+// ── 한도 걸려서 못 보낸 DM 다시 보내기 ──
+// 웹훅이 올 때마다(1분에 1번까지) + 하루 1번 크론에서 실행
+const WAIT = [10, 20, 40, 60, 120, 240, 480]; // 분
+const DEADLINE = 6.8 * 864e5; // 댓글 달린 지 7일 지나면 못 보내요
+export async function processRetries() {
+  if (!(await retryLock())) return { skipped: true };
+  const due = await dueRetries();
+  let sent = 0, again = 0, dropped = 0;
+  for (const { raw, job } of due) {
+    await removeRetry(raw);
+    const acc = await getAccount(job.igId);
+    const rule = acc && (await getRules(job.igId)).find((r) => r.id === job.ruleId);
+    const log = { user: job.user, text: job.text, rule: rule?.name || job.ruleName || '', retry: job.tries };
+    if (!acc || !rule) { dropped++; continue; }
+    if (Date.now() - job.at > DEADLINE) {
+      log.dm = 'fail: 7일이 지나서 보낼 수 없어요'; dropped++;
+      await bump(job.igId, rule.id, 'dm_fail', job.who); await addLog(job.igId, log); continue;
+    }
+    try {
+      log.mode = await sendFirst(job.igId, acc.token, job.commentId, rule, job.who);
+      log.dm = 'ok'; log.mode = `재전송 ${job.tries}회차${log.mode ? ' · ' + log.mode : ''}`; sent++;
+      await bump(job.igId, rule.id, 'dm_ok', job.who); await addLog(job.igId, log);
+    } catch (e) {
+      if (isRateLimit(e) && job.tries < WAIT.length) {
+        job.tries++; job.next = Date.now() + WAIT[job.tries - 1] * 60e3; again++;
+        await enqueueRetry(job);
+      } else {
+        log.dm = 'fail: ' + e.message; dropped++;
+        await bump(job.igId, rule.id, 'dm_fail', job.who); await addLog(job.igId, log);
+      }
+    }
+  }
+  return { checked: due.length, sent, again, dropped };
 }
 
 async function handleComment(igId, v) {
@@ -114,9 +150,15 @@ async function handleComment(igId, v) {
       log.dm = 'ok';
       await bump(igId, rule.id, 'dm_ok', who);
     } catch (e) {
-      log.dm = 'fail: ' + e.message;
-      await bump(igId, rule.id, 'dm_fail', who);
-      if (rule.once !== false && who) await redis.del(`sent:${igId}:${rule.id}:${who}`); // 실패하면 다음에 다시 보낼 수 있게
+      if (isRateLimit(e)) {
+        // 한도에 걸림 → 대기열에 넣고 10분 뒤부터 다시 시도
+        await enqueueRetry({ igId, commentId: v.id, ruleId: rule.id, ruleName: log.rule, who, user: log.user, text: v.text, at: Date.now(), tries: 1, next: Date.now() + WAIT[0] * 60e3 });
+        log.dm = 'queued';
+      } else {
+        log.dm = 'fail: ' + e.message;
+        await bump(igId, rule.id, 'dm_fail', who);
+        if (rule.once !== false && who) await redis.del(`sent:${igId}:${rule.id}:${who}`); // 실패하면 다음에 다시 보낼 수 있게
+      }
     }
   }
   const replies = (rule.replies || []).filter(Boolean);

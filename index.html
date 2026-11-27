@@ -131,7 +131,7 @@ function renderLogin(err = '') {
 async function load() {
   try {
     const j = await api('/api/accounts');
-    S.accounts = j.accounts; S.connectUrl = j.connectUrl; S.setup = j.setup;
+    S.accounts = j.accounts; S.connectUrl = j.connectUrl; S.setup = j.setup; S.pending = j.pending || 0;
     if (!S.cur || !S.accounts.find((a) => a.igId === S.cur)) S.cur = S.accounts[0]?.igId || null;
     render();
     if (S.cur) loadTab();
@@ -158,6 +158,7 @@ function render() {
     <button class="g" id="copyLink">🔗 모델 연결 링크 복사</button>
     <button class="g" id="setupBtn">⚙️ 메타 앱 설정값</button>
     <button class="g" id="logout">로그아웃</button></header>
+  ${S.pending ? `<div class="card" style="margin-bottom:12px;border-color:#6b5320;background:#221c0e">⏳ 사용량 한도에 걸린 DM <b>${S.pending}건</b>이 대기 중이에요. 한도가 풀리면 자동으로 다시 보내요 (최대 7일).</div>` : ''}
   ${S.accounts.length ? `<div class="accs">${S.accounts.map((a) => `
     <button class="acc ${a.igId === S.cur ? 'on' : ''}" data-acc="${esc(a.igId)}">
       <span class="av" style="background-image:url('${esc(a.picture)}')"></span>
@@ -220,7 +221,7 @@ function renderTab() {
     renderStats(body);
   } else {
     if (!S.logs.length) { body.innerHTML = `<div class="card empty">아직 발송 기록이 없어요.</div>`; return; }
-    const st = (v) => !v ? '<span class="muted">-</span>' : v === 'skip' ? '<span class="muted">중복이라 안 보냄</span>' : v === 'ok' ? '<span class="okc">성공</span>' : `<span class="badc">${esc(v.replace(/^fail: /, '실패: '))}</span>`;
+    const st = (v) => !v ? '<span class="muted">-</span>' : v === 'skip' ? '<span class="muted">중복이라 안 보냄</span>' : v === 'queued' ? '<span class="warn">한도 대기 → 자동 재전송</span>' : v === 'ok' ? '<span class="okc">성공</span>' : `<span class="badc">${esc(v.replace(/^fail: /, '실패: '))}</span>`;
     body.innerHTML = `<div class="card" style="padding:4px 12px;overflow-x:auto"><table>
       <thead><tr><th>시간</th><th>댓글 단 사람</th><th class="hide-m">댓글</th><th>DM</th><th class="hide-m">대댓글</th></tr></thead>
       <tbody>${S.logs.map((l) => `<tr>

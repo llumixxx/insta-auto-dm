@@ -1,4 +1,5 @@
-import { listAccounts, removeAccount, saveAccount } from '../lib/store.js';
+import { listAccounts, removeAccount, saveAccount, retryCount } from '../lib/store.js';
+import { processRetries } from './webhook.js';
 import { subscribeComments } from '../lib/ig.js';
 import { json, isAdmin } from '../lib/http.js';
 import { BASE_URL, VERIFY_TOKEN, CONNECT_CODE, APP_ID, APP_SECRET, isUnified } from '../lib/config.js';
@@ -12,7 +13,10 @@ export async function GET(request) {
   }));
   const base = BASE_URL();
   const connectUrl = `${base}/api/connect?code=${CONNECT_CODE()}`;
+  try { await processRetries(); } catch {}
+  const pending = Number(await retryCount()) || 0;
   return json({
+    pending,
     connectUrl,
     setup: {
       redirectUrl: `${base}/api/callback`,
