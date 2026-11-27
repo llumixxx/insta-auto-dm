@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>자동 DM 관리</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0e0f12;--panel:#17181d;--panel2:#1f2027;--line:#2b2d35;--ink:#f2f2f4;--sub:#9a9ca4;--acc:#e1306c;--ok:#2fbf71;--bad:#ff5a5f}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Noto Sans KR",system-ui,sans-serif}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;background:var(--panel2);min-height:40px}
+button.p{background:var(--acc);color:#fff;font-weight:700}
+button.g{background:transparent;border:1px solid var(--line)}
+button:disabled{opacity:.5;cursor:default}
+input,textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:16px}
+textarea{min-height:110px;resize:vertical}
+input:focus,textarea:focus,button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 60px}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+header h1{font-size:24px;font-weight:900;margin:0;flex:1}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px}
+.accs{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}
+.acc{flex:none;display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 14px 8px 8px;min-height:56px;text-align:left}
+.acc.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+.av{width:38px;height:38px;border-radius:50%;background:#333 center/cover;flex:none}
+.acc b{display:block;font-size:15px}.acc small{color:var(--sub);font-size:12px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.sp{flex:1}
+.tabs{display:flex;gap:6px;margin:22px 0 14px}
+.tabs button{background:transparent;border:1px solid var(--line)}
+.tabs button.on{background:var(--ink);color:var(--bg);font-weight:700}
+.rules{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:12px}
+.rule{display:flex;flex-direction:column;gap:10px}
+.rule .top{display:flex;gap:12px}
+.th{width:64px;height:64px;border-radius:10px;background:var(--panel2) center/cover;flex:none;display:grid;place-items:center;color:var(--sub);font-size:12px;text-align:center}
+.kw{display:flex;flex-wrap:wrap;gap:6px}
+.kw span{background:rgba(225,48,108,.15);color:#ff7aa5;border-radius:999px;padding:2px 10px;font-size:13px;font-weight:500}
+.dm{background:var(--panel2);border-radius:12px;padding:10px 12px;white-space:pre-wrap;font-size:14px;max-height:120px;overflow:auto;color:#d8d9de}
+.muted{color:var(--sub);font-size:13px}
+.tog{width:46px;height:26px;border-radius:13px;background:#444;position:relative;padding:0;min-height:0}
+.tog::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s}
+.tog.on{background:var(--ok)}.tog.on::after{left:23px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--sub);font-weight:500;font-size:13px}
+.okc{color:var(--ok)}.badc{color:var(--bad)}
+.empty{text-align:center;color:var(--sub);padding:40px 16px}
+dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:18px;padding:0;width:min(640px,94vw);max-height:92vh}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+.dlg{padding:20px;display:flex;flex-direction:column;gap:14px;overflow:auto;max-height:92vh}
+.dlg h2{margin:0;font-size:20px}
+label.f{display:flex;flex-direction:column;gap:6px;font-weight:500}
+label.f small{color:var(--sub);font-weight:400}
+.media{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;max-height:260px;overflow:auto;padding:2px}
+.mi{aspect-ratio:1;border-radius:10px;background:var(--panel2) center/cover;border:2px solid transparent;padding:0;position:relative;overflow:hidden}
+.mi.on{border-color:var(--acc)}
+.mi.all{display:grid;place-items:center;font-size:13px;font-weight:700;background:var(--panel2)}
+.mi .t{position:absolute;inset:auto 0 0 0;background:linear-gradient(transparent,rgba(0,0,0,.8));font-size:11px;padding:10px 4px 3px;color:#fff;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:700;opacity:0;transition:.2s;pointer-events:none;z-index:9}
+.toast.show{opacity:1}
+.login{max-width:360px;margin:16vh auto;display:flex;flex-direction:column;gap:12px;text-align:center}
+.warn{color:#ffb84d;font-size:12px}
+@media(max-width:600px){.hide-m{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
+<div class="toast" id="toast"></div>
+<script>
+{
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+let key = ''; try { key = localStorage.getItem('adm') || ''; } catch {}
+const S = { accounts: [], connectUrl: '', cur: null, tab: 'rules', rules: [], logs: [], media: null };
+
+function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2000); }
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { 'x-admin-key': key, 'Content-Type': 'application/json', ...(opts.headers || {}) } });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401) { key = ''; try { localStorage.removeItem('adm'); } catch {} renderLogin('비밀번호가 틀렸어요'); throw new Error('401'); }
+  if (!r.ok) throw new Error(j.error || '오류가 났어요');
+  return j;
+}
+
+function renderLogin(err = '') {
+  $('#app').innerHTML = `<form class="login" id="lf"><h1 style="font-size:26px;margin:0 0 8px">자동 DM 관리</h1>
+    <input type="password" id="pw" placeholder="관리자 비밀번호" autocomplete="current-password">
+    <button class="p">들어가기</button><div class="badc">${esc(err)}</div></form>`;
+  $('#lf').onsubmit = (e) => { e.preventDefault(); key = $('#pw').value; try { localStorage.setItem('adm', key); } catch {} load(); };
+  $('#pw').focus();
+}
+
+async function load() {
+  try {
+    const j = await api('/api/accounts');
+    S.accounts = j.accounts; S.connectUrl = j.connectUrl;
+    if (!S.cur || !S.accounts.find((a) => a.igId === S.cur)) S.cur = S.accounts[0]?.igId || null;
+    render();
+    if (S.cur) loadTab();
+  } catch (e) { if (e.message !== '401') renderLogin(e.message); }
+}
+
+async function loadTab() {
+  if (!S.cur) return;
+  const body = $('#tabBody'); if (body) body.innerHTML = '<div class="empty">불러오는 중…</div>';
+  try {
+    if (S.tab === 'rules') S.rules = (await api('/api/rules?igId=' + S.cur)).rules;
+    else S.logs = (await api('/api/logs?igId=' + S.cur)).logs;
+    renderTab();
+  } catch (e) { if (body) body.innerHTML = `<div class="empty badc">${esc(e.message)}</div>`; }
+}
+
+const days = (t) => Math.floor((t - Date.now()) / 864e5);
+
+function render() {
+  const acc = S.accounts.find((a) => a.igId === S.cur);
+  $('#app').innerHTML = `
+  <header><h1>자동 DM 관리</h1>
+    <button class="g" id="copyLink">🔗 모델 연결 링크 복사</button>
+    <button class="g" id="logout">로그아웃</button></header>
+  ${S.accounts.length ? `<div class="accs">${S.accounts.map((a) => `
+    <button class="acc ${a.igId === S.cur ? 'on' : ''}" data-acc="${esc(a.igId)}">
+      <span class="av" style="background-image:url('${esc(a.picture)}')"></span>
+      <span><b>@${esc(a.username)}</b><small>${a.refreshError ? '<span class="warn">토큰 갱신 실패 · 다시 연결 필요</span>' : `토큰 ${days(a.expiresAt)}일 남음`}</small></span>
+    </button>`).join('')}</div>` : `<div class="card empty">아직 연결된 계정이 없어요.<br><br>위의 <b>모델 연결 링크 복사</b>를 눌러 모델에게 보내주세요.<br>모델이 링크를 열고 인스타 로그인 → 허용하면 여기에 나타나요.</div>`}
+  ${acc ? `
+  <div class="tabs">
+    <button data-tab="rules" class="${S.tab === 'rules' ? 'on' : ''}">자동 DM 규칙</button>
+    <button data-tab="logs" class="${S.tab === 'logs' ? 'on' : ''}">발송 기록</button>
+    <span class="sp"></span>
+    ${S.tab === 'rules' ? '<button class="p" id="addRule">+ 규칙 추가</button>' : '<button class="g" id="reload">새로고침</button>'}
+  </div>
+  <div id="tabBody"></div>
+  <p class="muted" style="margin-top:28px">@${esc(acc.username)} 연결 해제하려면 <button class="g" id="delAcc" style="min-height:0;padding:4px 10px;font-size:13px">연결 해제</button></p>` : ''}`;
+
+  $('#copyLink').onclick = async () => { try { await navigator.clipboard.writeText(S.connectUrl); toast('연결 링크 복사됨'); } catch { showText('모델 연결 링크', S.connectUrl); } };
+  $('#logout').onclick = () => { key = ''; try { localStorage.removeItem('adm'); } catch {} renderLogin(); };
+  document.querySelectorAll('[data-acc]').forEach((b) => b.onclick = () => { S.cur = b.dataset.acc; S.media = null; render(); loadTab(); });
+  document.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => { S.tab = b.dataset.tab; render(); loadTab(); });
+  $('#addRule') && ($('#addRule').onclick = () => openEditor());
+  $('#reload') && ($('#reload').onclick = loadTab);
+  $('#delAcc') && ($('#delAcc').onclick = () => confirmBox(`@${acc.username} 연결을 해제할까요? 규칙과 기록도 같이 지워져요.`, async () => {
+    await api('/api/accounts?igId=' + acc.igId, { method: 'DELETE' }); toast('연결 해제됨'); S.cur = null; load();
+  }));
+}
+
+function renderTab() {
+  const body = $('#tabBody'); if (!body) return;
+  if (S.tab === 'rules') {
+    if (!S.rules.length) { body.innerHTML = `<div class="card empty">규칙이 없어요. <b>+ 규칙 추가</b>로 만들어보세요.</div>`; return; }
+    body.innerHTML = `<div class="rules">${S.rules.map((r) => `
+      <div class="card rule">
+        <div class="top">
+          <div class="th" style="${r.mediaThumb ? `background-image:url('${esc(r.mediaThumb)}')` : ''}">${r.mediaId === 'all' ? '모든<br>게시물' : (r.mediaThumb ? '' : '게시물')}</div>
+          <div style="flex:1">
+            <div class="row"><b style="flex:1">${esc(r.name || '이름 없음')}</b><button class="tog ${r.on !== false ? 'on' : ''}" data-tog="${esc(r.id)}" aria-label="켜기/끄기"></button></div>
+            <div class="muted">${r.mediaId === 'all' ? '모든 게시물·릴스' : esc(r.mediaLabel || '선택한 게시물')}</div>
+          </div>
+        </div>
+        <div class="kw">${r.keywords.map((k) => `<span>${esc(k)}</span>`).join('')}</div>
+        <div class="dm">${esc(r.dm)}</div>
+        ${r.replies?.length ? `<div class="muted">대댓글 ${r.replies.length}개 랜덤</div>` : ''}
+        <div class="row"><span class="sp"></span><button class="g" data-del="${esc(r.id)}">삭제</button><button data-edit="${esc(r.id)}">수정</button></div>
+      </div>`).join('')}</div>`;
+    body.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => openEditor(S.rules.find((r) => r.id === b.dataset.edit)));
+    body.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => confirmBox('이 규칙을 삭제할까요?', async () => {
+      S.rules = (await api(`/api/rules?igId=${S.cur}&id=${b.dataset.del}`, { method: 'DELETE' })).rules; renderTab(); toast('삭제됨');
+    }));
+    body.querySelectorAll('[data-tog]').forEach((b) => b.onclick = async () => {
+      const r = S.rules.find((x) => x.id === b.dataset.tog); r.on = r.on === false;
+      try { S.rules = (await api('/api/rules?igId=' + S.cur, { method: 'POST', body: JSON.stringify(r) })).rules; renderTab(); toast(r.on ? '켜짐' : '꺼짐'); } catch (e) { toast(e.message); }
+    });
+  } else {
+    if (!S.logs.length) { body.innerHTML = `<div class="card empty">아직 발송 기록이 없어요.</div>`; return; }
+    const st = (v) => !v ? '<span class="muted">-</span>' : v === 'ok' ? '<span class="okc">성공</span>' : `<span class="badc">${esc(v.replace(/^fail: /, '실패: '))}</span>`;
+    body.innerHTML = `<div class="card" style="padding:4px 12px;overflow-x:auto"><table>
+      <thead><tr><th>시간</th><th>댓글 단 사람</th><th class="hide-m">댓글</th><th>DM</th><th class="hide-m">대댓글</th></tr></thead>
+      <tbody>${S.logs.map((l) => `<tr>
+        <td style="white-space:nowrap">${new Date(l.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+        <td>@${esc(l.user)}</td><td class="hide-m">${esc(l.text)}</td><td>${st(l.dm)}</td><td class="hide-m">${st(l.reply)}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+}
+
+async function openEditor(rule) {
+  const r = rule ? JSON.parse(JSON.stringify(rule)) : { mediaId: 'all', keywords: [], dm: '', replies: [], name: '', on: true };
+  const d = $('#dlg'), b = $('#dlgBody');
+  b.innerHTML = `<h2>${rule ? '규칙 수정' : '규칙 추가'}</h2>
+    <label class="f">이름 <small>나만 보는 메모용</small><input id="fName" value="${esc(r.name)}" placeholder="예: 코성형 정보 이벤트"></label>
+    <div class="f" style="display:flex;flex-direction:column;gap:6px"><b style="font-weight:500">적용할 게시물</b>
+      <div class="media" id="mGrid"><div class="empty" style="grid-column:1/-1;padding:16px">게시물 불러오는 중…</div></div></div>
+    <label class="f">키워드 <small>쉼표로 구분 · 댓글에 이 단어가 들어가면 발송 (띄어쓰기·대소문자 무시)</small>
+      <input id="fKw" value="${esc(r.keywords.join(', '))}" placeholder="예: 정보, 코성형정보"></label>
+    <label class="f">보낼 DM <small>댓글 단 사람에게 1번만 가요</small><textarea id="fDm" placeholder="DM 내용">${esc(r.dm)}</textarea></label>
+    <label class="f">대댓글 (선택) <small>한 줄에 하나씩 · 여러 개면 랜덤으로 달려요</small>
+      <textarea id="fRp" style="min-height:80px" placeholder="DM 보내드렸어요! 확인해주세요 💌">${esc((r.replies || []).join('\n'))}</textarea></label>
+    <div class="row"><span class="badc" id="fErr"></span><span class="sp"></span><button class="g" id="fCancel">취소</button><button class="p" id="fSave">저장</button></div>`;
+  d.showModal();
+  $('#fCancel').onclick = () => d.close();
+
+  const grid = () => {
+    const items = S.media || [];
+    $('#mGrid').innerHTML = `<button class="mi all ${r.mediaId === 'all' ? 'on' : ''}" data-m="all">모든 게시물</button>` +
+      items.map((m) => `<button class="mi ${r.mediaId === m.id ? 'on' : ''}" data-m="${esc(m.id)}" style="background-image:url('${esc(m.thumbnail_url || m.media_url)}')" title="${esc(m.caption || '')}"><span class="t">${esc((m.caption || '').slice(0, 30) || new Date(m.timestamp).toLocaleDateString('ko-KR'))}</span></button>`).join('');
+    $('#mGrid').querySelectorAll('[data-m]').forEach((x) => x.onclick = () => {
+      r.mediaId = x.dataset.m;
+      const m = items.find((i) => i.id === r.mediaId);
+      r.mediaLabel = m ? ((m.caption || '').slice(0, 60) || new Date(m.timestamp).toLocaleDateString('ko-KR')) : '';
+      r.mediaThumb = m ? (m.thumbnail_url || m.media_url || '') : '';
+      grid();
+    });
+  };
+  if (S.media) grid();
+  else api('/api/media?igId=' + S.cur).then((j) => { S.media = j.media; grid(); }).catch((e) => { S.media = []; grid(); $('#fErr').textContent = '게시물 불러오기 실패: ' + e.message; });
+
+  $('#fSave').onclick = async () => {
+    r.name = $('#fName').value.trim();
+    r.keywords = $('#fKw').value.split(',').map((s) => s.trim()).filter(Boolean);
+    r.dm = $('#fDm').value.trim();
+    r.replies = $('#fRp').value.split('\n').map((s) => s.trim()).filter(Boolean);
+    if (!r.keywords.length) return ($('#fErr').textContent = '키워드를 넣어주세요');
+    if (!r.dm) return ($('#fErr').textContent = 'DM 내용을 넣어주세요');
+    $('#fSave').disabled = true;
+    try { S.rules = (await api('/api/rules?igId=' + S.cur, { method: 'POST', body: JSON.stringify(r) })).rules; d.close(); renderTab(); toast('저장됨'); }
+    catch (e) { $('#fErr').textContent = e.message; $('#fSave').disabled = false; }
+  };
+}
+
+function confirmBox(msg, fn) {
+  const d = $('#dlg');
+  $('#dlgBody').innerHTML = `<h2 style="font-size:18px">${esc(msg)}</h2><div class="row"><span class="sp"></span><button class="g" id="cN">취소</button><button class="p" id="cY">확인</button></div>`;
+  d.showModal(); $('#cN').onclick = () => d.close();
+  $('#cY').onclick = async () => { try { await fn(); } catch (e) { toast(e.message); } d.close(); };
+}
+function showText(title, text) {
+  const d = $('#dlg');
+  $('#dlgBody').innerHTML = `<h2 style="font-size:18px">${esc(title)}</h2><input value="${esc(text)}" readonly onclick="this.select()"><div class="row"><span class="sp"></span><button class="p" id="cN">닫기</button></div>`;
+  d.showModal(); $('#cN').onclick = () => d.close();
+}
+
+key ? load() : renderLogin();
+}
+</script>
+</body>
+</html>

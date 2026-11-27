@@ -1,0 +1,13 @@
+// 모델에게 보내는 연결 링크: /api/connect?code=CONNECT_CODE
+import { authUrl } from '../lib/ig.js';
+import { redis } from '../lib/store.js';
+import { page } from '../lib/http.js';
+
+export async function GET(request) {
+  const code = new URL(request.url).searchParams.get('code');
+  if (!process.env.CONNECT_CODE || code !== process.env.CONNECT_CODE)
+    return page('잘못된 링크예요', '관리자에게 연결 링크를 다시 받아주세요.', false);
+  const state = crypto.randomUUID();
+  await redis.set(`state:${state}`, 1, { ex: 600 });
+  return Response.redirect(authUrl(state), 302);
+}
