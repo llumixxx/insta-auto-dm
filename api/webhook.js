@@ -26,8 +26,16 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 function track(text, igId, ruleId) {
   const base = BASE_URL();
   if (!base) return text;
-  return text.replace(/https?:\/\/[^\s<>"']+/g, (u) =>
-    u.startsWith(base) ? u : `${base}/api/r?u=${encodeURIComponent(u)}&a=${igId}&r=${ruleId}`);
+  // https://… 또는 www.… 또는 도메인.com/.kr 등 (뒤에 붙은 한글·문장부호는 제외)
+  const re = /(?:https?:\/\/|www\.)[A-Za-z0-9\-._~:/?#[\]@!$&*+,;=%]+|\b[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.(?:com|co\.kr|kr|net|org|me|io|shop|store|site|ly|gl|link|page)(?:\/[A-Za-z0-9\-._~:/?#[\]@!$&*+,;=%]*)?/g;
+  return text.replace(re, (m, off) => {
+    if (text[off - 1] === '@' || /[A-Za-z0-9._%+-]/.test(text[off - 1] || '')) return m; // 이메일·단어 중간은 그대로
+    const trail = (m.match(/[.,!?;:)\]]+$/) || [''])[0];
+    const u = trail ? m.slice(0, -trail.length) : m;
+    if (u.startsWith(base)) return m; // 이미 추적 주소
+    const full = /^https?:\/\//.test(u) ? u : 'https://' + u;
+    return `${base}/api/r?u=${encodeURIComponent(full)}&a=${igId}&r=${ruleId}` + trail;
+  });
 }
 
 export async function POST(request) {
