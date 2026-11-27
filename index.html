@@ -74,7 +74,7 @@ label.f small{color:var(--sub);font-weight:400}
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
 let key = ''; try { key = localStorage.getItem('adm') || ''; } catch {}
-const S = { accounts: [], connectUrl: '', cur: null, tab: 'rules', rules: [], logs: [], media: null };
+const S = { accounts: [], connectUrl: '', setup: null, cur: null, tab: 'rules', rules: [], logs: [], media: null };
 
 function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2000); }
 
@@ -97,7 +97,7 @@ function renderLogin(err = '') {
 async function load() {
   try {
     const j = await api('/api/accounts');
-    S.accounts = j.accounts; S.connectUrl = j.connectUrl;
+    S.accounts = j.accounts; S.connectUrl = j.connectUrl; S.setup = j.setup;
     if (!S.cur || !S.accounts.find((a) => a.igId === S.cur)) S.cur = S.accounts[0]?.igId || null;
     render();
     if (S.cur) loadTab();
@@ -121,6 +121,7 @@ function render() {
   $('#app').innerHTML = `
   <header><h1>자동 DM 관리</h1>
     <button class="g" id="copyLink">🔗 모델 연결 링크 복사</button>
+    <button class="g" id="setupBtn">⚙️ 메타 앱 설정값</button>
     <button class="g" id="logout">로그아웃</button></header>
   ${S.accounts.length ? `<div class="accs">${S.accounts.map((a) => `
     <button class="acc ${a.igId === S.cur ? 'on' : ''}" data-acc="${esc(a.igId)}">
@@ -138,6 +139,7 @@ function render() {
   <p class="muted" style="margin-top:28px">@${esc(acc.username)} 연결 해제하려면 <button class="g" id="delAcc" style="min-height:0;padding:4px 10px;font-size:13px">연결 해제</button></p>` : ''}`;
 
   $('#copyLink').onclick = async () => { try { await navigator.clipboard.writeText(S.connectUrl); toast('연결 링크 복사됨'); } catch { showText('모델 연결 링크', S.connectUrl); } };
+  $('#setupBtn').onclick = showSetup;
   $('#logout').onclick = () => { key = ''; try { localStorage.removeItem('adm'); } catch {} renderLogin(); };
   document.querySelectorAll('[data-acc]').forEach((b) => b.onclick = () => { S.cur = b.dataset.acc; S.media = null; render(); loadTab(); });
   document.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => { S.tab = b.dataset.tab; render(); loadTab(); });
@@ -227,6 +229,19 @@ async function openEditor(rule) {
     try { S.rules = (await api('/api/rules?igId=' + S.cur, { method: 'POST', body: JSON.stringify(r) })).rules; d.close(); renderTab(); toast('저장됨'); }
     catch (e) { $('#fErr').textContent = e.message; $('#fSave').disabled = false; }
   };
+}
+
+function showSetup() {
+  const s = S.setup || {};
+  const rows = [['리디렉션 URL (비즈니스 로그인 설정)', s.redirectUrl], ['웹훅 콜백 URL', s.webhookUrl], ['웹훅 확인 토큰', s.verifyToken], ['개인정보처리방침 URL', s.privacyUrl]];
+  const d = $('#dlg');
+  $('#dlgBody').innerHTML = `<h2 style="font-size:18px">메타 앱에 붙여넣을 값</h2>
+    ${!s.hasApp ? '<div class="warn">Vercel 환경변수에 IG_APP_ID / IG_APP_SECRET이 아직 없어요. 넣고 재배포하면 확인 토큰이 바뀌니 그다음에 복사하세요.</div>' : ''}
+    ${!s.hasDb ? '<div class="badc">DB(Upstash Redis)가 연결 안 돼 있어요.</div>' : ''}
+    ${rows.map(([k, v], i) => `<label class="f">${esc(k)}<div class="row"><input value="${esc(v)}" readonly style="flex:1"><button data-cp="${i}">복사</button></div></label>`).join('')}
+    <div class="row"><span class="sp"></span><button class="p" id="cN">닫기</button></div>`;
+  d.showModal(); $('#cN').onclick = () => d.close();
+  d.querySelectorAll('[data-cp]').forEach((b) => b.onclick = async () => { try { await navigator.clipboard.writeText(rows[b.dataset.cp][1]); toast('복사됨'); } catch { toast('직접 선택해서 복사하세요'); } });
 }
 
 function confirmBox(msg, fn) {

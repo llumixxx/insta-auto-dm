@@ -36,29 +36,26 @@ privacy.html         개인정보처리방침 (메타 앱 라이브 전환에 �
    `https://내주소.vercel.app/api/callback`
 6. **"2. 웹훅 구성"**
    - 콜백 URL: `https://내주소.vercel.app/api/webhook`
-   - 확인 토큰: 아무 문자열이나 넣어요. 4단계의 `WEBHOOK_VERIFY_TOKEN`과 똑같이 맞춰야 해요.
-   - 이 단계는 4단계 환경변수를 넣고 재배포한 다음에 **확인 및 저장**을 눌러야 성공해요.
+   - 확인 토큰: 관리 페이지 **⚙️ 메타 앱 설정값**에 나온 값
+   - 4단계 환경변수를 넣고 재배포한 다음에 **확인 및 저장**을 눌러야 성공해요.
    - 필드 목록에서 **comments** 구독을 켜요.
 7. **앱 설정 → 기본 설정**
    - 개인정보처리방침 URL: `https://내주소.vercel.app/privacy.html`
    - 카테고리를 선택하고 저장해요.
 8. 위쪽 **앱 모드**를 **라이브**로 바꿔요. 개발 모드에서는 실제 댓글 웹훅이 안 와요.
 
-## 4. Vercel 환경변수
+## 4. Vercel 환경변수 (3개만)
 
-Vercel 프로젝트 → **Settings → Environment Variables** 에 아래 값을 넣고 **Redeploy** 해요.
+Vercel 프로젝트 → **Settings → Environment Variables** 에 넣고 **Redeploy** 해요.
 
 | 이름 | 값 |
 |---|---|
 | `IG_APP_ID` | Instagram 앱 ID |
 | `IG_APP_SECRET` | Instagram 앱 시크릿 코드 |
-| `BASE_URL` | `https://내주소.vercel.app` (끝에 `/` 없이) |
-| `WEBHOOK_VERIFY_TOKEN` | 3-6에서 넣은 확인 토큰 |
-| `ADMIN_PASSWORD` | 관리 페이지 비밀번호 |
-| `CONNECT_CODE` | 아무 문자열 (모델 연결 링크용) |
-| `CRON_SECRET` | 아무 문자열 (토큰 자동 갱신 보호용) |
+| `ADMIN_PASSWORD` | 관리 페이지 비밀번호 (길게) |
 
-→ 재배포가 끝나면 3-6 웹훅 **확인 및 저장**으로 돌아가서 마저 해요.
+배포 주소, 웹훅 확인 토큰, 모델 연결 코드는 자동으로 만들어져요.
+관리 페이지 → **⚙️ 메타 앱 설정값** 에서 리디렉션 URL / 웹훅 URL / 확인 토큰 / 개인정보처리방침 URL을 복사해서 3단계에 붙여넣으면 돼요.
 
 ## 5. 모델 계정 연결
 

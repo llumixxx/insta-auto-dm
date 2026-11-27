@@ -2,11 +2,12 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { getAccount, getRules, addLog, claimComment } from '../lib/store.js';
 import { privateReply, replyComment } from '../lib/ig.js';
+import { VERIFY_TOKEN } from '../lib/config.js';
 
 // 웹훅 주소 확인 (메타가 처음 등록할 때 호출)
 export async function GET(request) {
   const p = new URL(request.url).searchParams;
-  if (p.get('hub.mode') === 'subscribe' && p.get('hub.verify_token') === process.env.WEBHOOK_VERIFY_TOKEN)
+  if (p.get('hub.mode') === 'subscribe' && p.get('hub.verify_token') === VERIFY_TOKEN())
     return new Response(p.get('hub.challenge'));
   return new Response('forbidden', { status: 403 });
 }
