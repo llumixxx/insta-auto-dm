@@ -108,7 +108,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
 let key = ''; try { key = localStorage.getItem('adm') || ''; } catch {}
-const S = { accounts: [], connectUrl: '', setup: null, stats: null, preset: '7', from: '', to: '', scope: 'one', cur: null, tab: 'rules', rules: [], logs: [], media: null };
+const S = { accounts: [], connectUrl: '', setup: null, logMore: false, logTotal: 0, stats: null, preset: '7', from: '', to: '', scope: 'one', cur: null, tab: 'rules', rules: [], logs: [], media: null };
 
 function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2000); }
 
@@ -144,7 +144,7 @@ async function loadTab() {
   try {
     if (S.tab === 'rules') S.rules = (await api('/api/rules?igId=' + S.cur)).rules;
     else if (S.tab === 'stats') { if (!S.from) setPreset(); S.stats = await api(`/api/stats?igId=${S.scope === 'all' ? 'all' : S.cur}&from=${S.from.replace(/-/g, '')}&to=${S.to.replace(/-/g, '')}`); }
-    else S.logs = (await api('/api/logs?igId=' + S.cur)).logs;
+    else { const j = await api('/api/logs?igId=' + S.cur); S.logs = j.logs; S.logMore = j.more; S.logTotal = j.total; }
     renderTab();
   } catch (e) { if (body) body.innerHTML = `<div class="empty badc">${esc(e.message)}</div>`; }
 }
@@ -172,7 +172,7 @@ function render() {
     <span class="sp"></span>
     ${S.tab === 'rules' ? '<button class="p" id="addRule">+ 규칙 추가</button>' : S.tab === 'stats' ? `
       <span class="seg">${[['one', '이 계정'], ['all', '전체 계정']].map(([k, l]) => `<button data-scope="${k}" class="${S.scope === k ? 'on' : ''}">${l}</button>`).join('')}</span>
-      <span class="seg">${[['1', '오늘'], ['7', '7일'], ['30', '30일']].map(([k, l]) => `<button data-pre="${k}" class="${S.preset === k ? 'on' : ''}">${l}</button>`).join('')}<button data-pre="cal" class="${S.preset === 'cal' ? 'on' : ''}">📅 기간</button></span>` : '<button class="g" id="reload">새로고침</button>'}
+      <span class="seg">${[['1', '오늘'], ['7', '7일'], ['30', '30일']].map(([k, l]) => `<button data-pre="${k}" class="${S.preset === k ? 'on' : ''}">${l}</button>`).join('')}<button data-pre="cal" class="${S.preset === 'cal' ? 'on' : ''}">📅 기간</button></span>` : '<button class="g" id="backup">📥 엑셀로 백업</button><button class="g" id="reload">새로고침</button>'}
   </div>
   <div id="tabBody"></div>
   <p class="muted" style="margin-top:28px">@${esc(acc.username)} 연결 해제하려면 <button class="g" id="delAcc" style="min-height:0;padding:4px 10px;font-size:13px">연결 해제</button></p>` : ''}`;
@@ -186,6 +186,7 @@ function render() {
   document.querySelectorAll('[data-pre]').forEach((b) => b.onclick = () => { S.preset = b.dataset.pre; if (S.preset !== 'cal') setPreset(); render(); loadTab(); });
   document.querySelectorAll('[data-scope]').forEach((b) => b.onclick = () => { S.scope = b.dataset.scope; render(); loadTab(); });
   $('#reload') && ($('#reload').onclick = loadTab);
+  $('#backup') && ($('#backup').onclick = openBackup);
   $('#delAcc') && ($('#delAcc').onclick = () => confirmBox(`@${acc.username} 연결을 해제할까요? 규칙과 기록도 같이 지워져요.`, async () => {
     await api('/api/accounts?igId=' + acc.igId, { method: 'DELETE' }); toast('연결 해제됨'); S.cur = null; load();
   }));
@@ -222,12 +223,56 @@ function renderTab() {
   } else {
     if (!S.logs.length) { body.innerHTML = `<div class="card empty">아직 발송 기록이 없어요.</div>`; return; }
     const st = (v) => !v ? '<span class="muted">-</span>' : v === 'skip' ? '<span class="muted">중복이라 안 보냄</span>' : v === 'queued' ? '<span class="warn">한도 대기 → 자동 재전송</span>' : v === 'ok' ? '<span class="okc">성공</span>' : `<span class="badc">${esc(v.replace(/^fail: /, '실패: '))}</span>`;
-    body.innerHTML = `<div class="card" style="padding:4px 12px;overflow-x:auto"><table>
+    body.innerHTML = `<p class="muted" style="margin:0 0 8px">전체 ${fmt(S.logTotal)}건 · 2년 지난 기록은 자동으로 지워져요. 필요하면 미리 엑셀로 백업해두세요.</p>
+      <div class="card" style="padding:4px 12px;overflow-x:auto"><table>
       <thead><tr><th>시간</th><th>댓글 단 사람</th><th class="hide-m">댓글</th><th>DM</th><th class="hide-m">대댓글</th></tr></thead>
       <tbody>${S.logs.map((l) => `<tr>
-        <td style="white-space:nowrap">${new Date(l.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-        <td>@${esc(l.user)}</td><td class="hide-m">${esc(l.text)}</td><td>${st(l.dm)}${l.mode ? ` <span class="muted">(${esc(l.mode)})</span>` : ''}</td><td class="hide-m">${st(l.reply)}</td></tr>`).join('')}</tbody></table></div>`;
+        <td style="white-space:nowrap">${new Date(l.at).toLocaleString('ko-KR', { year: '2-digit', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+        <td>${l.user && !String(l.user).startsWith('(') ? '@' : ''}${esc(l.user)}</td><td class="hide-m">${esc(l.text)}</td><td>${st(l.dm)}${l.mode ? ` <span class="muted">(${esc(l.mode)})</span>` : ''}</td><td class="hide-m">${st(l.reply)}</td></tr>`).join('')}</tbody></table></div>
+      ${S.logMore ? '<div style="text-align:center;margin-top:12px"><button class="g" id="moreLogs">더 보기</button></div>' : ''}`;
+    if ($('#moreLogs')) $('#moreLogs').onclick = async () => {
+      $('#moreLogs').disabled = true;
+      try {
+        const j = await api(`/api/logs?igId=${S.cur}&before=${S.logs[S.logs.length - 1].at}`);
+        S.logs = S.logs.concat(j.logs); S.logMore = j.more; renderTab();
+      } catch (e) { toast(e.message); }
+    };
   }
+}
+
+function openBackup() {
+  const d = $('#dlg'), b = $('#dlgBody');
+  b.classList.remove('split');
+  const today = kday();
+  b.innerHTML = `<h2 style="font-size:18px">📥 발송 기록 엑셀로 백업</h2>
+    <p class="muted" style="margin:0">엑셀에서 바로 열리는 CSV 파일로 받아요. 2년 지난 기록은 자동으로 지워지니, 필요하면 그 전에 받아두세요.</p>
+    <div class="row"><span class="seg"><button data-bs="one" class="on">이 계정</button><button data-bs="all">전체 계정</button></span></div>
+    <div class="row" style="gap:8px"><input type="date" id="bFrom" value="${kday(Date.now() - 29 * 864e5)}" max="${today}" style="width:auto"><span class="muted">~</span>
+      <input type="date" id="bTo" value="${today}" max="${today}" style="width:auto">
+      <button class="g" id="bAllTime">전체 기간</button></div>
+    <div class="row"><span class="badc" id="bErr" style="flex:1"></span><button class="g" id="bCancel">닫기</button><button class="p" id="bGo">다운로드</button></div>`;
+  d.showModal();
+  let scope = 'one';
+  b.querySelectorAll('[data-bs]').forEach((x) => (x.onclick = () => { scope = x.dataset.bs; b.querySelectorAll('[data-bs]').forEach((y) => y.classList.toggle('on', y === x)); }));
+  $('#bAllTime').onclick = () => { $('#bFrom').value = '2020-01-01'; $('#bTo').value = today; };
+  $('#bCancel').onclick = () => d.close();
+  $('#bGo').onclick = async () => {
+    let f = $('#bFrom').value, t = $('#bTo').value;
+    if (!f || !t) return ($('#bErr').textContent = '기간을 골라주세요');
+    if (f > t) [f, t] = [t, f];
+    $('#bGo').disabled = true; $('#bErr').textContent = '';
+    try {
+      const igId = scope === 'all' ? 'all' : S.cur;
+      const r = await fetch(`/api/export?igId=${igId}&from=${f.replace(/-/g, '')}&to=${t.replace(/-/g, '')}`, { headers: { 'x-admin-key': key } });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || '다운로드 실패');
+      const blob = await r.blob();
+      const acc = S.accounts.find((a) => a.igId === S.cur);
+      const name = `자동DM_발송기록_${scope === 'all' ? '전체' : acc?.username || ''}_${f}_${t}.csv`;
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      toast('다운로드했어요'); d.close();
+    } catch (e) { $('#bErr').textContent = e.message; $('#bGo').disabled = false; }
+  };
 }
 
 async function openEditor(rule) {
