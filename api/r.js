@@ -1,5 +1,5 @@
 // DM 속 링크 클릭 추적: /api/r?u=원래주소&a=계정ID&r=규칙ID&c=받는사람
-import { bump } from '../lib/store.js';
+import { bump, recordClick } from '../lib/store.js';
 import { signLink } from '../lib/config.js';
 import { timingSafeEqual } from 'node:crypto';
 
@@ -18,6 +18,6 @@ export async function GET(request) {
   if (!valid) return new Response('유효하지 않은 링크예요', { status: 400 }); // 서명 없는 링크는 막아요
   const ua = request.headers.get('user-agent') || '';
   // 인스타가 미리보기 만들려고 여는 건 클릭으로 안 셈
-  if (a && !BOT.test(ua)) { try { await bump(a, r, 'click', c || null); } catch {} }
+  if (a && !BOT.test(ua)) { try { await bump(a, r, 'click', c || null); await recordClick(a, c, r); } catch {} }
   return Response.redirect(target.toString(), 302);
 }

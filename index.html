@@ -143,6 +143,7 @@ async function loadTab() {
   const body = $('#tabBody'); if (body) body.innerHTML = '<div class="empty">불러오는 중…</div>';
   try {
     if (S.tab === 'rules') S.rules = (await api('/api/rules?igId=' + S.cur)).rules;
+    else if (S.tab === 'clickers') { if (!S.from) setPreset(); S.clickers = (await api(clkUrl())).clickers; }
     else if (S.tab === 'stats') { if (!S.from) setPreset(); S.stats = await api(`/api/stats?igId=${S.scope === 'all' ? 'all' : S.cur}&from=${S.from.replace(/-/g, '')}&to=${S.to.replace(/-/g, '')}`); }
     else { const j = await api('/api/logs?igId=' + S.cur); S.logs = j.logs; S.logMore = j.more; S.logTotal = j.total; }
     renderTab();
@@ -169,10 +170,11 @@ function render() {
     <button data-tab="rules" class="${S.tab === 'rules' ? 'on' : ''}">자동 DM 규칙</button>
     <button data-tab="logs" class="${S.tab === 'logs' ? 'on' : ''}">발송 기록</button>
     <button data-tab="stats" class="${S.tab === 'stats' ? 'on' : ''}">📊 통계</button>
+    <button data-tab="clickers" class="${S.tab === 'clickers' ? 'on' : ''}">👀 링크 누른 사람</button>
     <span class="sp"></span>
-    ${S.tab === 'rules' ? '<button class="p" id="addRule">+ 규칙 추가</button>' : S.tab === 'stats' ? `
+    ${S.tab === 'rules' ? '<button class="p" id="addRule">+ 규칙 추가</button>' : (S.tab === 'stats' || S.tab === 'clickers') ? `
       <span class="seg">${[['one', '이 계정'], ['all', '전체 계정']].map(([k, l]) => `<button data-scope="${k}" class="${S.scope === k ? 'on' : ''}">${l}</button>`).join('')}</span>
-      <span class="seg">${[['1', '오늘'], ['7', '7일'], ['30', '30일']].map(([k, l]) => `<button data-pre="${k}" class="${S.preset === k ? 'on' : ''}">${l}</button>`).join('')}<button data-pre="cal" class="${S.preset === 'cal' ? 'on' : ''}">📅 기간</button></span>` : '<button class="g" id="backup">📥 엑셀로 백업</button><button class="g" id="reload">새로고침</button>'}
+      <span class="seg">${[['1', '오늘'], ['7', '7일'], ['30', '30일']].map(([k, l]) => `<button data-pre="${k}" class="${S.preset === k ? 'on' : ''}">${l}</button>`).join('')}<button data-pre="cal" class="${S.preset === 'cal' ? 'on' : ''}">📅 기간</button></span>${S.tab === 'clickers' ? '<button class="g" id="clkCsv">📥 엑셀</button>' : ''}` : '<button class="g" id="backup">📥 엑셀로 백업</button><button class="g" id="reload">새로고침</button>'}
   </div>
   <div id="tabBody"></div>
   <p class="muted" style="margin-top:28px">@${esc(acc.username)} 연결 해제하려면 <button class="g" id="delAcc" style="min-height:0;padding:4px 10px;font-size:13px">연결 해제</button></p>` : ''}`;
@@ -187,6 +189,15 @@ function render() {
   document.querySelectorAll('[data-scope]').forEach((b) => b.onclick = () => { S.scope = b.dataset.scope; render(); loadTab(); });
   $('#reload') && ($('#reload').onclick = loadTab);
   $('#backup') && ($('#backup').onclick = openBackup);
+  $('#clkCsv') && ($('#clkCsv').onclick = async () => {
+    try {
+      const r = await fetch(clkUrl() + '&format=csv', { headers: { 'x-admin-key': key } });
+      if (!r.ok) throw new Error('다운로드 실패');
+      const a = document.createElement('a'); a.href = URL.createObjectURL(await r.blob());
+      a.download = `링크누른사람_${S.scope === 'all' ? '전체' : (S.accounts.find((x) => x.igId === S.cur)?.username || '')}_${S.from}_${S.to}.csv`;
+      document.body.appendChild(a); a.click(); a.remove(); toast('다운로드했어요');
+    } catch (e) { toast(e.message); }
+  });
   $('#delAcc') && ($('#delAcc').onclick = () => confirmBox(`@${acc.username} 연결을 해제할까요? 규칙과 기록도 같이 지워져요.`, async () => {
     await api('/api/accounts?igId=' + acc.igId, { method: 'DELETE' }); toast('연결 해제됨'); S.cur = null; load();
   }));
@@ -220,6 +231,8 @@ function renderTab() {
     });
   } else if (S.tab === 'stats') {
     renderStats(body);
+  } else if (S.tab === 'clickers') {
+    renderClickers(body);
   } else {
     if (!S.logs.length) { body.innerHTML = `<div class="card empty">아직 발송 기록이 없어요.</div>`; return; }
     const st = (v) => !v ? '<span class="muted">-</span>' : v === 'skip' ? '<span class="muted">중복이라 안 보냄</span>' : v === 'queued' ? '<span class="warn">한도 대기 → 자동 재전송</span>' : v === 'ok' ? '<span class="okc">성공</span>' : `<span class="badc">${esc(v.replace(/^fail: /, '실패: '))}</span>`;
@@ -291,13 +304,14 @@ async function openEditor(rule) {
       <div class="modes" id="fMode">
         <button type="button" data-mode="text"><b>글자만</b><small>DM 1개 · 긴 글 OK</small></button>
         <button type="button" data-mode="button"><b>버튼만</b><small>짧은 글 + 링크 버튼</small></button>
-        <button type="button" data-mode="two"><b>2번 나눠 보내기</b><small>긴 글 → '받기' 누르면 버튼</small></button>
+        <button type="button" data-mode="two"><b>2번 나눠 보내기</b><small>짧은 안내 → 버튼 누르면 긴 글 + 링크</small></button>
       </div></div>
     <div class="ed">
       <div class="col">
-        <label class="f"><span id="lDm">첫 번째 DM</span> <small id="hDm"></small><textarea id="fDm" placeholder="DM 내용" maxlength="1000">${esc(r.dm)}</textarea><div class="cnt" id="fDmCnt"></div></label>
-        <label class="f m-two">'받기' 버튼 글자 <small>첫 DM 아래에 붙는 버튼 · 누르면 두 번째 DM이 가요</small><input id="fOpen" maxlength="20" placeholder="링크 받기" value="${esc(r.openLabel || '')}"></label>
-        <label class="f m-two">두 번째 DM <small>버튼 위에 들어갈 짧은 글 (640자까지)</small><textarea id="fDm2" style="min-height:70px" maxlength="640" placeholder="아래 버튼을 눌러 확인해주세요 👇">${esc(r.dm2 || '')}</textarea></label>
+        <label class="f m-two">첫 DM (짧은 안내) <small>댓글 단 사람에게 먼저 가는 글 · 아래에 버튼이 붙어요</small><textarea id="fIntro" style="min-height:70px" maxlength="640" placeholder="정보 보내드릴게요! 아래 버튼을 눌러주세요 👇">${esc(r.intro || '')}</textarea></label>
+        <label class="f m-two">버튼 글자 <small>누르면 본문이 가요 (20자까지)</small><input id="fOpen" maxlength="20" placeholder="정보 받기" value="${esc(r.openLabel || '')}"></label>
+        <label class="f"><span id="lDm">보낼 DM</span> <small id="hDm"></small><textarea id="fDm" placeholder="DM 내용" maxlength="1000">${esc(r.dm)}</textarea><div class="cnt" id="fDmCnt"></div></label>
+        <label class="f m-two">마지막 DM <small>링크 버튼 위에 들어갈 짧은 글 (640자까지)</small><textarea id="fDm2" style="min-height:70px" maxlength="640" placeholder="아래 버튼을 눌러 확인해주세요 👇">${esc(r.dm2 || '')}</textarea></label>
         <div class="f m-btn" style="display:flex;flex-direction:column;gap:6px"><b style="font-weight:500">링크 버튼 <small class="muted" style="font-weight:400">실제 주소는 안 보여요</small></b>
           <div class="row" style="flex-wrap:nowrap"><input id="fBtnT" maxlength="20" style="flex:0 0 40%" placeholder="버튼 글자" value="${esc(r.btnTitle || '')}">
           <input id="fBtnU" placeholder="링크 (예: www.thedoorps.com)" value="${esc(r.btnUrl || '')}"></div></div>
@@ -337,22 +351,23 @@ async function openEditor(rule) {
   const bub = (t, btn) => `<div class="bub"><div>${esc(t)}</div>${btn ? `<div class="bb">${esc(btn)}</div>` : ''}</div>`;
   const prev = () => {
     const dm = $('#fDm').value || 'DM 내용', bt = $('#fBtnT').value.trim() || '바로가기', hasU = !!$('#fBtnU').value.trim();
-    const open = $('#fOpen').value.trim() || '링크 받기', dm2 = $('#fDm2').value.trim() || '아래 버튼을 눌러 확인해주세요 👇';
+    const open = $('#fOpen').value.trim() || '정보 받기', dm2 = $('#fDm2').value.trim() || '아래 버튼을 눌러 확인해주세요 👇';
+    const intro = $('#fIntro').value.trim() || '정보 보내드릴게요! 아래 버튼을 눌러주세요 👇';
     $('#fPrev').innerHTML = r.mode === 'text' ? bub(dm)
       : r.mode === 'button' ? bub(dm, hasU ? bt : '')
-      : bub(dm) + `<div class="qr">${esc(open)}</div><div class="tap">↓ 누르면</div>` + bub(dm2, hasU ? bt : '');
+      : bub(intro, open) + `<div class="tap">↓ 버튼 누르면</div>` + bub(dm) + (hasU ? bub(dm2, bt) : '');
   };
   const setMode = (m) => {
     r.mode = m;
     $('#fMode').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x.dataset.mode === m));
     document.querySelectorAll('.m-two').forEach((x) => (x.style.display = m === 'two' ? '' : 'none'));
     document.querySelectorAll('.m-btn').forEach((x) => (x.style.display = m === 'text' ? 'none' : ''));
-    $('#lDm').textContent = m === 'two' ? '첫 번째 DM' : '보낼 DM';
+    $('#lDm').textContent = m === 'two' ? '본문 (버튼 누르면 가는 긴 글)' : '보낼 DM';
     $('#hDm').textContent = m === 'button' ? '버튼 위에 들어가는 글 · 640자까지 (길면 잘려 보여요)' : m === 'two' ? '긴 글 OK · 전부 다 보여요' : '댓글 단 사람에게 가는 DM';
     cnt(); prev();
   };
   $('#fMode').querySelectorAll('button').forEach((x) => (x.onclick = () => setMode(x.dataset.mode)));
-  ['#fDm', '#fDm2', '#fOpen', '#fBtnT', '#fBtnU'].forEach((q) => ($(q).oninput = () => { cnt(); prev(); }));
+  ['#fDm', '#fDm2', '#fOpen', '#fIntro', '#fBtnT', '#fBtnU'].forEach((q) => ($(q).oninput = () => { cnt(); prev(); }));
   setMode(r.mode);
 
   const grid = () => {
@@ -377,11 +392,11 @@ async function openEditor(rule) {
     r.replies = $('#fRp').value.split('\n').map((s) => s.trim()).filter(Boolean);
     r.track = $('#fTrack').checked;
     r.btnTitle = $('#fBtnT').value.trim(); r.btnUrl = $('#fBtnU').value.trim();
-    r.dm2 = $('#fDm2').value.trim(); r.openLabel = $('#fOpen').value.trim(); r.once = $('#fOnce').checked;
+    r.dm2 = $('#fDm2').value.trim(); r.openLabel = $('#fOpen').value.trim(); r.intro = $('#fIntro').value.trim(); r.once = $('#fOnce').checked;
     if (r.mode === 'text') { r.btnUrl = ''; }
     if (r.mode === 'button' && !r.btnUrl) return ($('#fErr').textContent = '버튼 링크를 넣어주세요');
     if (r.mode === 'button' && r.dm.length > 640) return ($('#fErr').textContent = '버튼만 보내기는 640자 이하로 줄여주세요');
-    if (r.mode === 'two' && !r.btnUrl && !r.dm2) return ($('#fErr').textContent = '두 번째 DM 내용이나 버튼 링크를 넣어주세요');
+
     if (!r.keywords.length) return ($('#fErr').textContent = '키워드를 넣어주세요');
     if (!r.dm) return ($('#fErr').textContent = 'DM 내용을 넣어주세요');
     $('#fSave').disabled = true;
@@ -397,6 +412,30 @@ const kday = (t = Date.now()) => new Date(t + 9 * 3600e3).toISOString().slice(0,
 function setPreset() {
   const n = S.preset === '1' ? 1 : S.preset === '30' ? 30 : 7;
   S.to = kday(); S.from = kday(Date.now() - (n - 1) * 864e5);
+}
+
+const clkUrl = () => `/api/clickers?igId=${S.scope === 'all' ? 'all' : S.cur}&from=${S.from.replace(/-/g, '')}&to=${S.to.replace(/-/g, '')}`;
+function renderClickers(body) {
+  const rows = S.clickers || [];
+  const dt = (t) => (t ? new Date(t).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-');
+  body.innerHTML = `
+    ${S.preset === 'cal' ? `<div class="card row" style="margin-bottom:12px;gap:8px">
+      <b>기간</b><input type="date" id="dFrom" value="${S.from}" max="${kday()}" style="width:auto">
+      <span class="muted">~</span><input type="date" id="dTo" value="${S.to}" max="${kday()}" style="width:auto"><button class="p" id="dGo">보기</button></div>` : ''}
+    <p class="muted" style="margin:0 0 8px">DM 속 링크(버튼)를 누른 사람 ${fmt(rows.length)}명 · 마지막으로 누른 순서예요. 아이디를 누르면 인스타 프로필이 열려요.</p>
+    ${!rows.length ? '<div class="card empty">이 기간에 링크를 누른 사람이 없어요.<br><small>이 기능을 추가한 뒤에 보낸 DM부터 기록돼요.</small></div>' : `
+    <div class="card" style="padding:4px 12px;overflow-x:auto"><table>
+      <thead><tr><th>인스타 아이디</th><th class="n">클릭</th><th>처음</th><th>마지막</th><th class="hide-m">규칙</th>${S.scope === 'all' ? '<th class="hide-m">계정</th>' : ''}</tr></thead>
+      <tbody>${rows.map((r) => `<tr>
+        <td>${r.username ? `<a href="https://instagram.com/${encodeURIComponent(r.username)}" target="_blank" rel="noopener" style="color:#7aa7ff;font-weight:700">@${esc(r.username)}</a>` : '<span class="muted">(알 수 없음)</span>'}</td>
+        <td class="n">${fmt(r.clicks)}</td><td style="white-space:nowrap">${dt(r.first)}</td><td style="white-space:nowrap">${dt(r.last)}</td>
+        <td class="hide-m">${esc(r.rule)}</td>${S.scope === 'all' ? `<td class="hide-m">@${esc(r.account)}</td>` : ''}</tr>`).join('')}</tbody></table></div>`}`;
+  if ($('#dGo')) $('#dGo').onclick = () => {
+    let f = $('#dFrom').value, t = $('#dTo').value;
+    if (!f || !t) return toast('시작일과 종료일을 골라주세요');
+    if (f > t) [f, t] = [t, f];
+    S.from = f; S.to = t; loadTab();
+  };
 }
 
 function renderStats(body) {

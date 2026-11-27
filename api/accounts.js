@@ -8,8 +8,8 @@ export async function GET(request) {
   { const deny = await adminGate(request); if (deny) return deny; }
   const accs = await listAccounts();
   // 예전에 연결한 계정은 DM 버튼 알림(messages·postback)도 구독하도록 한 번 갱신
-  await Promise.allSettled(accs.filter((a) => a.subV !== 2).map(async (a) => {
-    await subscribeComments(a.igId, a.token); a.subV = 2; await saveAccount(a);
+  await Promise.allSettled(accs.filter((a) => a.subV !== 3).map(async (a) => {
+    await subscribeComments(a.igId, a.token); a.subV = 3; await saveAccount(a);
   }));
   const base = BASE_URL();
   const connectUrl = `${base}/api/connect?code=${CONNECT_CODE()}`;

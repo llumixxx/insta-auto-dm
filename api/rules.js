@@ -15,6 +15,7 @@ const clean = (r) => ({
   mode: ['text', 'button', 'two'].includes(r.mode) ? r.mode : (r.btnUrl ? 'button' : 'text'),
   once: r.once !== false,
   dm2: String(r.dm2 || '').slice(0, 640),
+  intro: String(r.intro || '').slice(0, 640),
   openLabel: String(r.openLabel || '').trim().slice(0, 20),
   btnTitle: String(r.btnTitle || '').trim().slice(0, 20),
   btnUrl: String(r.btnUrl || '').trim().slice(0, 500),
