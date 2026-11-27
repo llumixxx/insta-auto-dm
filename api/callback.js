@@ -3,7 +3,7 @@ import { connect, subscribeComments } from '../lib/ig.js';
 import { redis, saveAccount, getAccount } from '../lib/store.js';
 import { page, esc } from '../lib/http.js';
 import { CONNECT_CODE } from '../lib/config.js';
-const again = () => `<br><br><a href="/api/join?code=${CONNECT_CODE()}" style="display:inline-block;background:#e1306c;color:#fff;padding:14px 22px;border-radius:12px;text-decoration:none;font-weight:700">처음 화면으로</a>`;
+const again = () => `<br><br><a href="/api/connect?code=${CONNECT_CODE()}" style="display:inline-block;background:#e1306c;color:#fff;padding:14px 22px;border-radius:12px;text-decoration:none;font-weight:700">처음 화면으로</a>`;
 
 export async function GET(request) {
   const u = new URL(request.url);
