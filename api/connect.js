@@ -51,7 +51,7 @@ a.b{display:block;text-align:center;text-decoration:none;color:#fff;background:#
 · 비밀번호는 인스타그램 공식 화면에만 입력되며 저희에게 전달되지 않습니다. DM 내용은 읽지 않습니다.</p>
 </div><script>
 function mark(){try{if(localStorage.getItem('j1')){s1.classList.remove('on');s1.classList.add('done');n1.textContent='✓';s2.classList.add('on')}}catch(e){}}
-b1.addEventListener('click',function(e){try{localStorage.setItem('j1','1')}catch(x){}e.preventDefault();var h=b1.href;setTimeout(function(){location.href=h},0)});
+b1.addEventListener('click',function(e){try{localStorage.setItem('j1','1')}catch(x){}e.preventDefault();var w=null;try{w=window.open(b1.href,'_blank')}catch(x){}if(!w)location.href=b1.href});
 cp.addEventListener('click',function(){try{localStorage.setItem('j1','1')}catch(x){}var t=u.textContent;(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(function(){cp.textContent='복사됨'},function(){var r=document.createRange();r.selectNodeContents(u);var s=getSelection();s.removeAllRanges();s.addRange(r);document.execCommand('copy');cp.textContent='복사됨'})});
 mark();addEventListener('pageshow',mark);
 </script></body></html>`, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
