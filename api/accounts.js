@@ -12,7 +12,7 @@ export async function GET(request) {
     await subscribeComments(a.igId, a.token); a.subV = 3; await saveAccount(a);
   }));
   const base = BASE_URL();
-  const connectUrl = `${base}/api/connect?code=${CONNECT_CODE()}`;
+  const connectUrl = `${base}/api/join?code=${CONNECT_CODE()}`;
   try { await processRetries(); } catch {}
   const pending = Number(await retryCount()) || 0;
   return json({
