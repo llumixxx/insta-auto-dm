@@ -12,6 +12,8 @@ const clean = (r) => ({
   replies: (r.replies || []).map((k) => String(k).trim()).filter(Boolean).slice(0, 5),
   on: r.on !== false,
   track: r.track !== false,
+  btnTitle: String(r.btnTitle || '').trim().slice(0, 20),
+  btnUrl: String(r.btnUrl || '').trim().slice(0, 500),
 });
 
 export async function GET(request) {

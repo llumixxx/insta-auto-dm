@@ -192,7 +192,7 @@ function renderTab() {
           </div>
         </div>
         <div class="kw">${r.keywords.map((k) => `<span>${esc(k)}</span>`).join('')}</div>
-        <div class="dm">${esc(r.dm)}</div>
+        <div class="dm">${esc(r.dm)}${r.btnUrl ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line);text-align:center;font-weight:700;color:#7aa7ff">${esc(r.btnTitle || '바로가기')}</div>` : ''}</div>
         ${r.replies?.length ? `<div class="muted">대댓글 ${r.replies.length}개 랜덤</div>` : ''}
         <div class="row"><span class="sp"></span><button class="g" data-del="${esc(r.id)}">삭제</button><button data-edit="${esc(r.id)}">수정</button></div>
       </div>`).join('')}</div>`;
@@ -213,7 +213,7 @@ function renderTab() {
       <thead><tr><th>시간</th><th>댓글 단 사람</th><th class="hide-m">댓글</th><th>DM</th><th class="hide-m">대댓글</th></tr></thead>
       <tbody>${S.logs.map((l) => `<tr>
         <td style="white-space:nowrap">${new Date(l.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-        <td>@${esc(l.user)}</td><td class="hide-m">${esc(l.text)}</td><td>${st(l.dm)}</td><td class="hide-m">${st(l.reply)}</td></tr>`).join('')}</tbody></table></div>`;
+        <td>@${esc(l.user)}</td><td class="hide-m">${esc(l.text)}</td><td>${st(l.dm)}${l.mode ? ` <span class="muted">(${esc(l.mode)})</span>` : ''}</td><td class="hide-m">${st(l.reply)}</td></tr>`).join('')}</tbody></table></div>`;
   }
 }
 
@@ -229,9 +229,16 @@ async function openEditor(rule) {
     <div class="f" style="display:flex;flex-direction:column;gap:6px"><b style="font-weight:500">키워드 <small class="muted" style="font-weight:400">입력하고 Enter · 댓글에 이 단어가 들어가면 발송 (띄어쓰기·대소문자 무시)</small></b>
       <div class="chips" id="fKw"><input id="fKwIn" placeholder="예: 정보" enterkeyhint="done"></div></div>
     <label class="f">보낼 DM <small>댓글 단 사람에게 1번만 가요</small><textarea id="fDm" placeholder="DM 내용" maxlength="1000">${esc(r.dm)}</textarea><div class="cnt" id="fDmCnt"></div></label>
+    <div class="f" style="display:flex;flex-direction:column;gap:6px"><b style="font-weight:500">링크 버튼 (선택) <small class="muted" style="font-weight:400">넣으면 DM 아래에 버튼이 붙고, 실제 주소는 안 보여요</small></b>
+      <div class="row" style="flex-wrap:nowrap"><input id="fBtnT" maxlength="20" style="flex:0 0 38%" placeholder="버튼 글자 (예: 상담 예약하기)" value="${esc(r.btnTitle || '')}">
+      <input id="fBtnU" placeholder="링크 (예: www.thedoorps.com)" value="${esc(r.btnUrl || '')}"></div>
+      <div id="fBtnPrev" style="display:none;background:var(--panel2);border-radius:14px;padding:12px;max-width:300px">
+        <div style="white-space:pre-wrap;font-size:14px;color:#d8d9de" id="fBtnPrevT"></div>
+        <div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;text-align:center;font-weight:700;color:#7aa7ff" id="fBtnPrevB"></div></div>
+      <small class="muted">미리보기는 대략적인 모양이에요. DM 본문은 640자 이하여야 버튼으로 나가요.</small></div>
     <label class="f">대댓글 (선택) <small>한 줄에 하나씩 · 여러 개면 랜덤으로 달려요</small>
       <textarea id="fRp" style="min-height:80px" placeholder="DM 보내드렸어요! 확인해주세요 💌">${esc((r.replies || []).join('\n'))}</textarea></label>
-    <label class="row" style="gap:8px;font-weight:500"><input type="checkbox" id="fTrack" style="width:20px;height:20px" ${r.track !== false ? 'checked' : ''}> DM 속 링크 클릭 수 세기 <small class="muted">(링크가 추적용 주소로 바뀌어서 나가요)</small></label>
+    <label class="row" style="gap:8px;font-weight:500"><input type="checkbox" id="fTrack" style="width:20px;height:20px" ${r.track !== false ? 'checked' : ''}> 링크 클릭 수 세기 <small class="muted">(버튼을 쓰면 주소가 안 보여요 · 본문에 쓴 링크는 추적용 주소로 바뀌어요)</small></label>
     </div>
     <div class="df"><span class="badc" id="fErr" style="flex:1;font-size:14px"></span><button class="g" id="fCancel">취소</button><button class="p" id="fSave">저장</button></div>`;
   d.showModal();
@@ -258,7 +265,14 @@ async function openEditor(rule) {
   $('#fKw').onclick = () => kwIn.focus();
   drawKw();
   const cnt = () => ($('#fDmCnt').textContent = `${$('#fDm').value.length} / 1000`);
-  $('#fDm').oninput = cnt; cnt();
+  const prev = () => {
+    const on = !!$('#fBtnU').value.trim();
+    $('#fBtnPrev').style.display = on ? 'block' : 'none';
+    $('#fBtnPrevT').textContent = $('#fDm').value || 'DM 내용';
+    $('#fBtnPrevB').textContent = $('#fBtnT').value.trim() || '바로가기';
+  };
+  $('#fDm').oninput = () => { cnt(); prev(); }; cnt();
+  $('#fBtnT').oninput = $('#fBtnU').oninput = prev; prev();
 
   const grid = () => {
     const items = S.media || [];
@@ -281,6 +295,8 @@ async function openEditor(rule) {
     r.dm = $('#fDm').value.trim();
     r.replies = $('#fRp').value.split('\n').map((s) => s.trim()).filter(Boolean);
     r.track = $('#fTrack').checked;
+    r.btnTitle = $('#fBtnT').value.trim(); r.btnUrl = $('#fBtnU').value.trim();
+    if (r.btnUrl && r.dm.length > 640) return ($('#fErr').textContent = '버튼을 쓰려면 DM을 640자 이하로 줄여주세요');
     if (!r.keywords.length) return ($('#fErr').textContent = '키워드를 넣어주세요');
     if (!r.dm) return ($('#fErr').textContent = 'DM 내용을 넣어주세요');
     $('#fSave').disabled = true;

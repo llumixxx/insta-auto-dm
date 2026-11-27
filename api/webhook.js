@@ -1,7 +1,7 @@
 // 메타 웹훅: 댓글 → 키워드 확인 → DM(+대댓글)
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { getAccount, getRules, addLog, claimComment, bump } from '../lib/store.js';
-import { privateReply, replyComment } from '../lib/ig.js';
+import { privateReply, privateReplyButton, replyComment } from '../lib/ig.js';
 import { VERIFY_TOKEN, APP_SECRET, BASE_URL } from '../lib/config.js';
 
 // 웹훅 주소 확인 (메타가 처음 등록할 때 호출)
@@ -36,6 +36,26 @@ function track(text, igId, ruleId) {
     const full = /^https?:\/\//.test(u) ? u : 'https://' + u;
     return `${base}/api/r?u=${encodeURIComponent(full)}&a=${igId}&r=${ruleId}` + trail;
   });
+}
+
+const fullUrl = (u) => (/^https?:\/\//i.test(u) ? u : 'https://' + u);
+const trackUrl = (u, igId, ruleId) => `${BASE_URL()}/api/r?u=${encodeURIComponent(fullUrl(u))}&a=${igId}&r=${ruleId}`;
+
+async function sendDm(igId, token, commentId, rule) {
+  const tracking = rule.track !== false && !!BASE_URL();
+  if (rule.btnUrl) {
+    const url = tracking ? trackUrl(rule.btnUrl, igId, rule.id) : fullUrl(rule.btnUrl);
+    const title = rule.btnTitle || '바로가기';
+    if (rule.dm.length <= 640) {
+      try { await privateReplyButton(igId, token, commentId, rule.dm, url, title); return '버튼'; }
+      catch (e) { /* 버튼이 안 되면 아래에서 글자 링크로 다시 보내요 */ }
+    }
+    const text = `${rule.dm}\n\n${title}: ${tracking ? url : fullUrl(rule.btnUrl)}`;
+    await privateReply(igId, token, commentId, text);
+    return '글자 링크';
+  }
+  await privateReply(igId, token, commentId, tracking ? track(rule.dm, igId, rule.id) : rule.dm);
+  return '';
 }
 
 export async function POST(request) {
@@ -74,7 +94,7 @@ async function handleComment(igId, v) {
   await bump(igId, rule.id, 'match');
   const log = { user: v.from?.username || '', text: v.text, rule: rule.name || rule.keywords.join(', '), mediaId };
   try {
-    await privateReply(igId, acc.token, v.id, rule.track === false ? rule.dm : track(rule.dm, igId, rule.id));
+    log.mode = await sendDm(igId, acc.token, v.id, rule);
     log.dm = 'ok';
     await bump(igId, rule.id, 'dm_ok');
   } catch (e) {
