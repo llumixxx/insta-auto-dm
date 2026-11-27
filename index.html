@@ -47,7 +47,7 @@ th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertic
 th{color:var(--sub);font-weight:500;font-size:13px}
 .okc{color:var(--ok)}.badc{color:var(--bad)}
 .empty{text-align:center;color:var(--sub);padding:40px 16px}
-dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:18px;padding:0;width:min(640px,94vw);max-height:92vh;overflow:hidden}
+dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:18px;padding:0;width:min(760px,94vw);max-height:92vh;overflow:hidden}
 dialog::backdrop{background:rgba(0,0,0,.6)}
 .dlg{padding:20px;display:flex;flex-direction:column;gap:14px;overflow:auto;max-height:calc(92vh - 2px)}
 .dlg.split{padding:0;gap:0;overflow:hidden}
@@ -76,10 +76,22 @@ label.f small{color:var(--sub);font-weight:400}
 .kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
 .kpi small{color:var(--sub);font-size:13px;display:block}.kpi b{font-size:28px;font-weight:900;line-height:1.2}
 .kpi em{font-style:normal;color:var(--sub);font-size:13px;margin-left:4px}
+.kpi .sub2{color:var(--sub);font-size:12px;margin-top:2px}
+input[type=date]{color-scheme:dark;min-height:40px}
 .chart{position:relative;height:240px}.chart svg{position:absolute;inset:0;width:100%;height:100%}
 .legend{display:flex;gap:14px;font-size:13px;color:var(--sub);margin-bottom:8px}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}.seg button{border-radius:0;background:transparent;min-height:36px;padding:6px 12px}.seg button.on{background:var(--ink);color:var(--bg);font-weight:700}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.modes button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid var(--line);background:var(--panel2);padding:10px 12px;border-radius:12px}
+.modes button small{color:var(--sub);font-size:12px}.modes button.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset;background:rgba(225,48,108,.08)}
+.ed{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:16px;align-items:start}.ed .col{display:flex;flex-direction:column;gap:14px}
+.pv{position:sticky;top:0;display:flex;flex-direction:column;gap:6px;background:#000;border-radius:16px;padding:12px;border:1px solid var(--line)}
+.bub{background:#262730;border-radius:16px;padding:10px 12px;font-size:13px;white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:hidden}
+.bub .bb{margin:10px -12px -10px;border-top:1px solid #3a3b45;padding:9px;text-align:center;font-weight:700;color:#7aa7ff}
+.qr{align-self:flex-start;border:1px solid #7aa7ff;color:#7aa7ff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700}
+.tap{color:var(--sub);font-size:11px;text-align:center}
+@media(max-width:640px){.modes{grid-template-columns:1fr}.ed{grid-template-columns:1fr}.pv{position:static}}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:700;opacity:0;transition:.2s;pointer-events:none;z-index:9}
 .toast.show{opacity:1}
 .login{max-width:360px;margin:16vh auto;display:flex;flex-direction:column;gap:12px;text-align:center}
@@ -96,7 +108,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
 let key = ''; try { key = localStorage.getItem('adm') || ''; } catch {}
-const S = { accounts: [], connectUrl: '', setup: null, stats: null, days: 30, scope: 'one', cur: null, tab: 'rules', rules: [], logs: [], media: null };
+const S = { accounts: [], connectUrl: '', setup: null, stats: null, preset: '7', from: '', to: '', scope: 'one', cur: null, tab: 'rules', rules: [], logs: [], media: null };
 
 function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2000); }
 
@@ -131,7 +143,7 @@ async function loadTab() {
   const body = $('#tabBody'); if (body) body.innerHTML = '<div class="empty">불러오는 중…</div>';
   try {
     if (S.tab === 'rules') S.rules = (await api('/api/rules?igId=' + S.cur)).rules;
-    else if (S.tab === 'stats') S.stats = await api(`/api/stats?igId=${S.scope === 'all' ? 'all' : S.cur}&days=${S.days}`);
+    else if (S.tab === 'stats') { if (!S.from) setPreset(); S.stats = await api(`/api/stats?igId=${S.scope === 'all' ? 'all' : S.cur}&from=${S.from.replace(/-/g, '')}&to=${S.to.replace(/-/g, '')}`); }
     else S.logs = (await api('/api/logs?igId=' + S.cur)).logs;
     renderTab();
   } catch (e) { if (body) body.innerHTML = `<div class="empty badc">${esc(e.message)}</div>`; }
@@ -159,7 +171,7 @@ function render() {
     <span class="sp"></span>
     ${S.tab === 'rules' ? '<button class="p" id="addRule">+ 규칙 추가</button>' : S.tab === 'stats' ? `
       <span class="seg">${[['one', '이 계정'], ['all', '전체 계정']].map(([k, l]) => `<button data-scope="${k}" class="${S.scope === k ? 'on' : ''}">${l}</button>`).join('')}</span>
-      <span class="seg">${[7, 30, 90].map((d) => `<button data-days="${d}" class="${S.days === d ? 'on' : ''}">${d}일</button>`).join('')}</span>` : '<button class="g" id="reload">새로고침</button>'}
+      <span class="seg">${[['1', '오늘'], ['7', '7일'], ['30', '30일']].map(([k, l]) => `<button data-pre="${k}" class="${S.preset === k ? 'on' : ''}">${l}</button>`).join('')}<button data-pre="cal" class="${S.preset === 'cal' ? 'on' : ''}">📅 기간</button></span>` : '<button class="g" id="reload">새로고침</button>'}
   </div>
   <div id="tabBody"></div>
   <p class="muted" style="margin-top:28px">@${esc(acc.username)} 연결 해제하려면 <button class="g" id="delAcc" style="min-height:0;padding:4px 10px;font-size:13px">연결 해제</button></p>` : ''}`;
@@ -170,7 +182,7 @@ function render() {
   document.querySelectorAll('[data-acc]').forEach((b) => b.onclick = () => { S.cur = b.dataset.acc; S.media = null; render(); loadTab(); });
   document.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => { S.tab = b.dataset.tab; render(); loadTab(); });
   $('#addRule') && ($('#addRule').onclick = () => openEditor());
-  document.querySelectorAll('[data-days]').forEach((b) => b.onclick = () => { S.days = +b.dataset.days; render(); loadTab(); });
+  document.querySelectorAll('[data-pre]').forEach((b) => b.onclick = () => { S.preset = b.dataset.pre; if (S.preset !== 'cal') setPreset(); render(); loadTab(); });
   document.querySelectorAll('[data-scope]').forEach((b) => b.onclick = () => { S.scope = b.dataset.scope; render(); loadTab(); });
   $('#reload') && ($('#reload').onclick = loadTab);
   $('#delAcc') && ($('#delAcc').onclick = () => confirmBox(`@${acc.username} 연결을 해제할까요? 규칙과 기록도 같이 지워져요.`, async () => {
@@ -188,7 +200,7 @@ function renderTab() {
           <div class="th" style="${r.mediaThumb ? `background-image:url('${esc(r.mediaThumb)}')` : ''}">${r.mediaId === 'all' ? '모든<br>게시물' : (r.mediaThumb ? '' : '게시물')}</div>
           <div style="flex:1">
             <div class="row"><b style="flex:1">${esc(r.name || '이름 없음')}</b><button class="tog ${r.on !== false ? 'on' : ''}" data-tog="${esc(r.id)}" aria-label="켜기/끄기"></button></div>
-            <div class="muted">${r.mediaId === 'all' ? '모든 게시물·릴스' : esc(r.mediaLabel || '선택한 게시물')}</div>
+            <div class="muted">${r.mediaId === 'all' ? '모든 게시물·릴스' : esc(r.mediaLabel || '선택한 게시물')} · ${({ text: '글자만', button: '버튼만', two: '2번 나눠 보내기' })[r.mode || (r.btnUrl ? 'button' : 'text')]}</div>
           </div>
         </div>
         <div class="kw">${r.keywords.map((k) => `<span>${esc(k)}</span>`).join('')}</div>
@@ -208,7 +220,7 @@ function renderTab() {
     renderStats(body);
   } else {
     if (!S.logs.length) { body.innerHTML = `<div class="card empty">아직 발송 기록이 없어요.</div>`; return; }
-    const st = (v) => !v ? '<span class="muted">-</span>' : v === 'ok' ? '<span class="okc">성공</span>' : `<span class="badc">${esc(v.replace(/^fail: /, '실패: '))}</span>`;
+    const st = (v) => !v ? '<span class="muted">-</span>' : v === 'skip' ? '<span class="muted">중복이라 안 보냄</span>' : v === 'ok' ? '<span class="okc">성공</span>' : `<span class="badc">${esc(v.replace(/^fail: /, '실패: '))}</span>`;
     body.innerHTML = `<div class="card" style="padding:4px 12px;overflow-x:auto"><table>
       <thead><tr><th>시간</th><th>댓글 단 사람</th><th class="hide-m">댓글</th><th>DM</th><th class="hide-m">대댓글</th></tr></thead>
       <tbody>${S.logs.map((l) => `<tr>
@@ -218,7 +230,8 @@ function renderTab() {
 }
 
 async function openEditor(rule) {
-  const r = rule ? JSON.parse(JSON.stringify(rule)) : { mediaId: 'all', keywords: [], dm: '', replies: [], name: '', on: true };
+  const r = rule ? JSON.parse(JSON.stringify(rule)) : { mediaId: 'all', keywords: [], dm: '', replies: [], name: '', on: true, mode: 'two', once: true };
+  r.mode = r.mode || (r.btnUrl ? 'button' : 'text');
   const d = $('#dlg'), b = $('#dlgBody');
   b.classList.add('split');
   b.innerHTML = `<div class="dh"><h2>${rule ? '규칙 수정' : '규칙 추가'}</h2><button class="x" id="fX" aria-label="닫기">✕</button></div>
@@ -228,16 +241,26 @@ async function openEditor(rule) {
       <div class="media" id="mGrid"><div class="empty" style="grid-column:1/-1;padding:16px">게시물 불러오는 중…</div></div></div>
     <div class="f" style="display:flex;flex-direction:column;gap:6px"><b style="font-weight:500">키워드 <small class="muted" style="font-weight:400">입력하고 Enter · 댓글에 이 단어가 들어가면 발송 (띄어쓰기·대소문자 무시)</small></b>
       <div class="chips" id="fKw"><input id="fKwIn" placeholder="예: 정보" enterkeyhint="done"></div></div>
-    <label class="f">보낼 DM <small>댓글 단 사람에게 1번만 가요</small><textarea id="fDm" placeholder="DM 내용" maxlength="1000">${esc(r.dm)}</textarea><div class="cnt" id="fDmCnt"></div></label>
-    <div class="f" style="display:flex;flex-direction:column;gap:6px"><b style="font-weight:500">링크 버튼 (선택) <small class="muted" style="font-weight:400">넣으면 DM 아래에 버튼이 붙고, 실제 주소는 안 보여요</small></b>
-      <div class="row" style="flex-wrap:nowrap"><input id="fBtnT" maxlength="20" style="flex:0 0 38%" placeholder="버튼 글자 (예: 상담 예약하기)" value="${esc(r.btnTitle || '')}">
-      <input id="fBtnU" placeholder="링크 (예: www.thedoorps.com)" value="${esc(r.btnUrl || '')}"></div>
-      <div id="fBtnPrev" style="display:none;background:var(--panel2);border-radius:14px;padding:12px;max-width:300px">
-        <div style="white-space:pre-wrap;font-size:14px;color:#d8d9de" id="fBtnPrevT"></div>
-        <div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;text-align:center;font-weight:700;color:#7aa7ff" id="fBtnPrevB"></div></div>
-      <small class="muted">미리보기는 대략적인 모양이에요. DM 본문은 640자 이하여야 버튼으로 나가요.</small></div>
+    <div class="f" style="display:flex;flex-direction:column;gap:8px"><b style="font-weight:500">보내는 방식</b>
+      <div class="modes" id="fMode">
+        <button type="button" data-mode="text"><b>글자만</b><small>DM 1개 · 긴 글 OK</small></button>
+        <button type="button" data-mode="button"><b>버튼만</b><small>짧은 글 + 링크 버튼</small></button>
+        <button type="button" data-mode="two"><b>2번 나눠 보내기</b><small>긴 글 → '받기' 누르면 버튼</small></button>
+      </div></div>
+    <div class="ed">
+      <div class="col">
+        <label class="f"><span id="lDm">첫 번째 DM</span> <small id="hDm"></small><textarea id="fDm" placeholder="DM 내용" maxlength="1000">${esc(r.dm)}</textarea><div class="cnt" id="fDmCnt"></div></label>
+        <label class="f m-two">'받기' 버튼 글자 <small>첫 DM 아래에 붙는 버튼 · 누르면 두 번째 DM이 가요</small><input id="fOpen" maxlength="20" placeholder="링크 받기" value="${esc(r.openLabel || '')}"></label>
+        <label class="f m-two">두 번째 DM <small>버튼 위에 들어갈 짧은 글 (640자까지)</small><textarea id="fDm2" style="min-height:70px" maxlength="640" placeholder="아래 버튼을 눌러 확인해주세요 👇">${esc(r.dm2 || '')}</textarea></label>
+        <div class="f m-btn" style="display:flex;flex-direction:column;gap:6px"><b style="font-weight:500">링크 버튼 <small class="muted" style="font-weight:400">실제 주소는 안 보여요</small></b>
+          <div class="row" style="flex-wrap:nowrap"><input id="fBtnT" maxlength="20" style="flex:0 0 40%" placeholder="버튼 글자" value="${esc(r.btnTitle || '')}">
+          <input id="fBtnU" placeholder="링크 (예: www.thedoorps.com)" value="${esc(r.btnUrl || '')}"></div></div>
+      </div>
+      <div class="pv"><small class="muted">미리보기</small><div id="fPrev"></div></div>
+    </div>
     <label class="f">대댓글 (선택) <small>한 줄에 하나씩 · 여러 개면 랜덤으로 달려요</small>
       <textarea id="fRp" style="min-height:80px" placeholder="DM 보내드렸어요! 확인해주세요 💌">${esc((r.replies || []).join('\n'))}</textarea></label>
+    <label class="row" style="gap:8px;font-weight:500"><input type="checkbox" id="fOnce" style="width:20px;height:20px" ${r.once !== false ? 'checked' : ''}> 같은 사람에게는 1번만 보내기 <small class="muted">(여러 번 댓글 달아도 DM은 처음 1번만)</small></label>
     <label class="row" style="gap:8px;font-weight:500"><input type="checkbox" id="fTrack" style="width:20px;height:20px" ${r.track !== false ? 'checked' : ''}> 링크 클릭 수 세기 <small class="muted">(버튼을 쓰면 주소가 안 보여요 · 본문에 쓴 링크는 추적용 주소로 바뀌어요)</small></label>
     </div>
     <div class="df"><span class="badc" id="fErr" style="flex:1;font-size:14px"></span><button class="g" id="fCancel">취소</button><button class="p" id="fSave">저장</button></div>`;
@@ -264,15 +287,27 @@ async function openEditor(rule) {
   kwIn.onblur = addKw;
   $('#fKw').onclick = () => kwIn.focus();
   drawKw();
-  const cnt = () => ($('#fDmCnt').textContent = `${$('#fDm').value.length} / 1000`);
+  const cnt = () => ($('#fDmCnt').textContent = `${$('#fDm').value.length} / ${r.mode === 'button' ? 640 : 1000}`);
+  const bub = (t, btn) => `<div class="bub"><div>${esc(t)}</div>${btn ? `<div class="bb">${esc(btn)}</div>` : ''}</div>`;
   const prev = () => {
-    const on = !!$('#fBtnU').value.trim();
-    $('#fBtnPrev').style.display = on ? 'block' : 'none';
-    $('#fBtnPrevT').textContent = $('#fDm').value || 'DM 내용';
-    $('#fBtnPrevB').textContent = $('#fBtnT').value.trim() || '바로가기';
+    const dm = $('#fDm').value || 'DM 내용', bt = $('#fBtnT').value.trim() || '바로가기', hasU = !!$('#fBtnU').value.trim();
+    const open = $('#fOpen').value.trim() || '링크 받기', dm2 = $('#fDm2').value.trim() || '아래 버튼을 눌러 확인해주세요 👇';
+    $('#fPrev').innerHTML = r.mode === 'text' ? bub(dm)
+      : r.mode === 'button' ? bub(dm, hasU ? bt : '')
+      : bub(dm) + `<div class="qr">${esc(open)}</div><div class="tap">↓ 누르면</div>` + bub(dm2, hasU ? bt : '');
   };
-  $('#fDm').oninput = () => { cnt(); prev(); }; cnt();
-  $('#fBtnT').oninput = $('#fBtnU').oninput = prev; prev();
+  const setMode = (m) => {
+    r.mode = m;
+    $('#fMode').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x.dataset.mode === m));
+    document.querySelectorAll('.m-two').forEach((x) => (x.style.display = m === 'two' ? '' : 'none'));
+    document.querySelectorAll('.m-btn').forEach((x) => (x.style.display = m === 'text' ? 'none' : ''));
+    $('#lDm').textContent = m === 'two' ? '첫 번째 DM' : '보낼 DM';
+    $('#hDm').textContent = m === 'button' ? '버튼 위에 들어가는 글 · 640자까지 (길면 잘려 보여요)' : m === 'two' ? '긴 글 OK · 전부 다 보여요' : '댓글 단 사람에게 가는 DM';
+    cnt(); prev();
+  };
+  $('#fMode').querySelectorAll('button').forEach((x) => (x.onclick = () => setMode(x.dataset.mode)));
+  ['#fDm', '#fDm2', '#fOpen', '#fBtnT', '#fBtnU'].forEach((q) => ($(q).oninput = () => { cnt(); prev(); }));
+  setMode(r.mode);
 
   const grid = () => {
     const items = S.media || [];
@@ -296,7 +331,11 @@ async function openEditor(rule) {
     r.replies = $('#fRp').value.split('\n').map((s) => s.trim()).filter(Boolean);
     r.track = $('#fTrack').checked;
     r.btnTitle = $('#fBtnT').value.trim(); r.btnUrl = $('#fBtnU').value.trim();
-    if (r.btnUrl && r.dm.length > 640) return ($('#fErr').textContent = '버튼을 쓰려면 DM을 640자 이하로 줄여주세요');
+    r.dm2 = $('#fDm2').value.trim(); r.openLabel = $('#fOpen').value.trim(); r.once = $('#fOnce').checked;
+    if (r.mode === 'text') { r.btnUrl = ''; }
+    if (r.mode === 'button' && !r.btnUrl) return ($('#fErr').textContent = '버튼 링크를 넣어주세요');
+    if (r.mode === 'button' && r.dm.length > 640) return ($('#fErr').textContent = '버튼만 보내기는 640자 이하로 줄여주세요');
+    if (r.mode === 'two' && !r.btnUrl && !r.dm2) return ($('#fErr').textContent = '두 번째 DM 내용이나 버튼 링크를 넣어주세요');
     if (!r.keywords.length) return ($('#fErr').textContent = '키워드를 넣어주세요');
     if (!r.dm) return ($('#fErr').textContent = 'DM 내용을 넣어주세요');
     $('#fSave').disabled = true;
@@ -308,64 +347,83 @@ async function openEditor(rule) {
 const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
 const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 + '%' : '-');
 
+const kday = (t = Date.now()) => new Date(t + 9 * 3600e3).toISOString().slice(0, 10);
+function setPreset() {
+  const n = S.preset === '1' ? 1 : S.preset === '30' ? 30 : 7;
+  S.to = kday(); S.from = kday(Date.now() - (n - 1) * 864e5);
+}
+
 function renderStats(body) {
-  const st = S.stats || { daily: [] };
-  const sum = (k) => st.daily.reduce((s, d) => s + d[k], 0);
-  const T = { match: sum('match'), ok: sum('dm_ok'), fail: sum('dm_fail'), click: sum('click') };
-  const empty = !T.match && !T.ok && !T.click;
+  const st = S.stats || { series: [], total: {}, people: {} };
+  const T = st.total || {}, P = st.people || {};
+  const empty = !T.match && !T.dm_ok && !T.click && !T.open;
+  const kpi = (label, total, people, unit, note = '') =>
+    `<div class="kpi"><small>${label}</small><b>${fmt(people)}</b><em>명</em><div class="sub2">총 ${fmt(total)}${unit}${note}</div></div>`;
   body.innerHTML = `
+    ${S.preset === 'cal' ? `<div class="card row" style="margin-bottom:12px;gap:8px">
+      <b>기간</b><input type="date" id="dFrom" value="${S.from}" max="${kday()}" style="width:auto">
+      <span class="muted">~</span><input type="date" id="dTo" value="${S.to}" max="${kday()}" style="width:auto">
+      <button class="p" id="dGo">보기</button><span class="muted" style="font-size:13px">하루만 고르면 시간대별로 보여요</span></div>` : ''}
     <div class="kpis">
-      <div class="kpi"><small>키워드 댓글</small><b>${fmt(T.match)}</b><em>건</em></div>
-      <div class="kpi"><small>DM 발송 성공</small><b>${fmt(T.ok)}</b><em>건</em></div>
-      <div class="kpi"><small>DM 실패</small><b class="${T.fail ? 'badc' : ''}">${fmt(T.fail)}</b><em>${pct(T.fail, T.ok + T.fail)}</em></div>
-      <div class="kpi"><small>링크 클릭</small><b>${fmt(T.click)}</b><em>회</em></div>
-      <div class="kpi"><small>클릭률 (클릭 ÷ DM)</small><b>${pct(T.click, T.ok)}</b></div>
+      ${kpi('키워드 댓글 단 사람', T.match, P.match, '건')}
+      ${kpi('DM 받은 사람', T.dm_ok, P.dm_ok, '건 발송', T.dm_fail ? ` · <span class="badc">실패 ${fmt(T.dm_fail)}</span>` : '')}
+      ${T.open || P.open ? kpi("'받기' 누른 사람", T.open, P.open, '회') : ''}
+      ${kpi('링크 누른 사람', T.click, P.click, '회 클릭')}
+      <div class="kpi"><small>클릭률</small><b>${pct(P.click, P.dm_ok)}</b><div class="sub2">링크 누른 사람 ÷ DM 받은 사람</div></div>
     </div>
     <div class="card" style="margin-bottom:12px">
-      <div class="row"><b style="flex:1">일별 추이 · 최근 ${S.days}일</b>
+      <div class="row"><b style="flex:1">${st.hourly ? '시간대별' : '일별'} 추이 · ${fmtRange(st.from, st.to)}</b>
         <div class="legend"><span><i style="background:var(--acc)"></i>DM 발송</span><span><i style="background:var(--ok)"></i>링크 클릭</span></div></div>
-      ${empty ? '<div class="empty">아직 데이터가 없어요. 키워드 댓글이 달리면 여기에 쌓여요.</div>' : '<div class="chart" id="chart"><svg></svg></div>'}
+      ${empty ? '<div class="empty">이 기간에는 데이터가 없어요.</div>' : '<div class="chart" id="chart"><svg></svg></div>'}
     </div>
     ${S.scope === 'all' ? acctTable(st.byAccount || []) : ruleTable(st.byRule || [])}`;
-  if (!empty) drawChart($('#chart svg'), st.daily);
+  if (!empty) drawChart($('#chart svg'), st.series);
+  if ($('#dGo')) $('#dGo').onclick = () => {
+    let f = $('#dFrom').value, t = $('#dTo').value;
+    if (!f || !t) return toast('시작일과 종료일을 골라주세요');
+    if (f > t) [f, t] = [t, f];
+    S.from = f; S.to = t; loadTab();
+  };
 }
+const fmtRange = (f, t) => { const d = (x) => `${+x.slice(4, 6)}/${+x.slice(6)}`; return !f ? '' : f === t ? `${d(f)} 하루` : `${d(f)} ~ ${d(t)}`; };
 
 function ruleTable(rows) {
   if (!rows.length) return '';
   rows = [...rows].sort((a, b) => b.dm_ok - a.dm_ok);
+  const twoAny = rows.some((r) => r.mode === 'two');
   return `<div class="card" style="padding:4px 12px;overflow-x:auto"><table>
-    <thead><tr><th>규칙</th><th class="n">DM 성공</th><th class="n">실패</th><th class="n">클릭</th><th class="n">클릭률</th></tr></thead>
+    <thead><tr><th>규칙 (전체 기간 누적)</th><th class="n">DM 받은 사람</th><th class="n">발송 횟수</th>${twoAny ? '<th class="n">받기 누름</th>' : ''}<th class="n">링크 누른 사람</th><th class="n">클릭률</th></tr></thead>
     <tbody>${rows.map((r) => `<tr><td>${esc(r.name)}${r.on ? '' : ' <span class="muted">(꺼짐)</span>'}</td>
-      <td class="n">${fmt(r.dm_ok)}</td><td class="n ${r.dm_fail ? 'badc' : ''}">${fmt(r.dm_fail)}</td><td class="n">${fmt(r.click)}</td><td class="n">${pct(r.click, r.dm_ok)}</td></tr>`).join('')}</tbody></table>
-    <p class="muted" style="margin:8px 0">규칙별 숫자는 전체 기간 누적이에요.</p></div>`;
+      <td class="n">${fmt(r.u_dm_ok)}</td><td class="n">${fmt(r.dm_ok)}${r.dm_fail ? ` <span class="badc">(실패 ${fmt(r.dm_fail)})</span>` : ''}</td>
+      ${twoAny ? `<td class="n">${r.mode === 'two' ? fmt(r.u_open) : '-'}</td>` : ''}
+      <td class="n">${fmt(r.u_click)} <span class="muted">(${fmt(r.click)}회)</span></td><td class="n">${pct(r.u_click, r.u_dm_ok)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 function acctTable(rows) {
   if (!rows.length) return '';
-  rows = [...rows].sort((a, b) => b.dm_ok - a.dm_ok);
+  rows = [...rows].sort((a, b) => b.u_dm_ok - a.u_dm_ok);
   return `<div class="card" style="padding:4px 12px;overflow-x:auto"><table>
-    <thead><tr><th>계정</th><th class="n">DM 성공</th><th class="n">실패</th><th class="n">클릭</th><th class="n">클릭률</th></tr></thead>
-    <tbody>${rows.map((r) => `<tr><td>@${esc(r.username)}</td><td class="n">${fmt(r.dm_ok)}</td><td class="n ${r.dm_fail ? 'badc' : ''}">${fmt(r.dm_fail)}</td>
-      <td class="n">${fmt(r.click)}</td><td class="n">${pct(r.click, r.dm_ok)}</td></tr>`).join('')}</tbody></table></div>`;
+    <thead><tr><th>계정 (선택한 기간)</th><th class="n">댓글 단 사람</th><th class="n">DM 받은 사람</th><th class="n">링크 누른 사람</th><th class="n">클릭률</th></tr></thead>
+    <tbody>${rows.map((r) => `<tr><td>@${esc(r.username)}</td><td class="n">${fmt(r.u_match)}</td><td class="n">${fmt(r.u_dm_ok)}</td>
+      <td class="n">${fmt(r.u_click)}</td><td class="n">${pct(r.u_click, r.u_dm_ok)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
-function drawChart(svg, daily) {
+function drawChart(svg, rows) {
   const box = svg.parentElement;
   const draw = () => {
     const W = box.clientWidth, H = box.clientHeight, L = 34, B = 24, T = 8, R = 6;
-    const max = Math.max(1, ...daily.map((d) => Math.max(d.dm_ok, d.click)));
+    const max = Math.max(1, ...rows.map((d) => Math.max(d.dm_ok, d.click)));
     const raw = max / 4, mag = Math.pow(10, Math.floor(Math.log10(raw))); const step = Math.max(1, [1, 2, 5, 10].find((m) => m * mag >= raw) * mag); const top = step * 4;
-    const n = daily.length, cw = (W - L - R) / n, bw = Math.max(1.5, Math.min(14, cw * 0.36));
+    const n = rows.length, cw = (W - L - R) / n, bw = Math.max(1.5, Math.min(14, cw * 0.36));
     const y = (v) => T + (H - T - B) * (1 - v / top);
-    const css = getComputedStyle(document.body);
     let g = '';
-    for (let i = 0; i <= 4; i++) { const v = (top / 4) * i, yy = y(v);
-      g += `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="var(--line)"/><text x="${L - 6}" y="${yy + 4}" text-anchor="end" font-size="11" fill="var(--sub)">${Math.round(v)}</text>`; }
+    for (let i = 0; i <= 4; i++) { const v = step * i, yy = y(v);
+      g += `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="var(--line)"/><text x="${L - 6}" y="${yy + 4}" text-anchor="end" font-size="11" fill="var(--sub)">${v}</text>`; }
     const every = Math.ceil(n / Math.max(2, Math.floor((W - L) / 46)));
-    daily.forEach((d, i) => { const x = L + i * cw + cw / 2;
-      if (d.dm_ok) g += `<rect x="${x - bw - 1}" y="${y(d.dm_ok)}" width="${bw}" height="${y(0) - y(d.dm_ok)}" rx="2" fill="var(--acc)"><title>${d.day} DM ${d.dm_ok}</title></rect>`;
-      if (d.click) g += `<rect x="${x + 1}" y="${y(d.click)}" width="${bw}" height="${y(0) - y(d.click)}" rx="2" fill="var(--ok)"><title>${d.day} 클릭 ${d.click}</title></rect>`;
-      if (i % every === 0 || i === n - 1) g += `<text x="${x}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--sub)">${d.day}</text>`; });
+    rows.forEach((d, i) => { const x = L + i * cw + cw / 2;
+      if (d.dm_ok) g += `<rect x="${x - bw - 1}" y="${y(d.dm_ok)}" width="${bw}" height="${y(0) - y(d.dm_ok)}" rx="2" fill="var(--acc)"><title>${d.label} DM ${d.dm_ok}</title></rect>`;
+      if (d.click) g += `<rect x="${x + 1}" y="${y(d.click)}" width="${bw}" height="${y(0) - y(d.click)}" rx="2" fill="var(--ok)"><title>${d.label} 클릭 ${d.click}</title></rect>`;
+      if (i % every === 0 || i === n - 1) g += `<text x="${x}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--sub)">${d.label}</text>`; });
     svg.innerHTML = g;
   };
   const ro = new ResizeObserver(draw); ro.observe(box); draw();

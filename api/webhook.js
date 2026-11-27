@@ -1,7 +1,7 @@
 // 메타 웹훅: 댓글 → 키워드 확인 → DM(+대댓글)
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { getAccount, getRules, addLog, claimComment, bump } from '../lib/store.js';
-import { privateReply, privateReplyButton, replyComment } from '../lib/ig.js';
+import { redis, getAccount, getRules, addLog, claimComment, bump, firstTime } from '../lib/store.js';
+import { send, msgText, msgQuick, msgButton, replyComment } from '../lib/ig.js';
 import { VERIFY_TOKEN, APP_SECRET, BASE_URL } from '../lib/config.js';
 
 // 웹훅 주소 확인 (메타가 처음 등록할 때 호출)
@@ -23,7 +23,7 @@ const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, '');
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 // DM 안의 링크를 클릭 추적 링크로 바꿔요 (규칙에서 끄면 원래 링크 그대로)
-function track(text, igId, ruleId) {
+function track(text, igId, ruleId, who = '') {
   const base = BASE_URL();
   if (!base) return text;
   // https://… 또는 www.… 또는 도메인.com/.kr 등 (뒤에 붙은 한글·문장부호는 제외)
@@ -34,27 +34,38 @@ function track(text, igId, ruleId) {
     const u = trail ? m.slice(0, -trail.length) : m;
     if (u.startsWith(base)) return m; // 이미 추적 주소
     const full = /^https?:\/\//.test(u) ? u : 'https://' + u;
-    return `${base}/api/r?u=${encodeURIComponent(full)}&a=${igId}&r=${ruleId}` + trail;
+    return `${base}/api/r?u=${encodeURIComponent(full)}&a=${igId}&r=${ruleId}${who ? '&c=' + who : ''}` + trail;
   });
 }
 
 const fullUrl = (u) => (/^https?:\/\//i.test(u) ? u : 'https://' + u);
-const trackUrl = (u, igId, ruleId) => `${BASE_URL()}/api/r?u=${encodeURIComponent(fullUrl(u))}&a=${igId}&r=${ruleId}`;
+const trackUrl = (u, igId, ruleId, who) =>
+  `${BASE_URL()}/api/r?u=${encodeURIComponent(fullUrl(u))}&a=${igId}&r=${ruleId}${who ? '&c=' + who : ''}`;
+export const modeOf = (r) => r.mode || (r.btnUrl ? 'button' : 'text');
 
-async function sendDm(igId, token, commentId, rule) {
-  const tracking = rule.track !== false && !!BASE_URL();
-  if (rule.btnUrl) {
-    const url = tracking ? trackUrl(rule.btnUrl, igId, rule.id) : fullUrl(rule.btnUrl);
+// 링크 (추적 켜져 있으면 추적 주소)
+const linkFor = (rule, igId, who) =>
+  rule.track !== false && BASE_URL() ? trackUrl(rule.btnUrl, igId, rule.id, who) : fullUrl(rule.btnUrl);
+const textFor = (text, rule, igId, who) => (rule.track !== false ? track(text, igId, rule.id, who) : text);
+
+// 댓글 단 사람에게 보내는 첫 DM (댓글당 1번만 가능)
+async function sendFirst(igId, token, commentId, rule, who) {
+  const to = { comment_id: commentId };
+  const mode = modeOf(rule);
+  if (mode === 'two') {
+    // ① 긴 본문 + '링크 받기' 빠른 답장 → 누르면 ② 버튼 DM
+    const label = rule.openLabel || '링크 받기';
+    try { await send(igId, token, to, msgQuick(textFor(rule.dm, rule, igId, who), label, `R:${rule.id}`)); return '2단계 ①'; } catch {}
+    try { await send(igId, token, to, msgButton(rule.dm.slice(0, 640), [{ type: 'postback', title: label, payload: `R:${rule.id}` }])); return '2단계 ①(버튼)'; } catch {}
+  }
+  if ((mode === 'button' || mode === 'two') && rule.btnUrl) {
     const title = rule.btnTitle || '바로가기';
-    if (rule.dm.length <= 640) {
-      try { await privateReplyButton(igId, token, commentId, rule.dm, url, title); return '버튼'; }
-      catch (e) { /* 버튼이 안 되면 아래에서 글자 링크로 다시 보내요 */ }
-    }
-    const text = `${rule.dm}\n\n${title}: ${tracking ? url : fullUrl(rule.btnUrl)}`;
-    await privateReply(igId, token, commentId, text);
+    const text = (mode === 'two' ? rule.dm2 || rule.dm : rule.dm).slice(0, 640);
+    try { await send(igId, token, to, msgButton(text, [{ type: 'web_url', url: linkFor(rule, igId, who), title }])); return '버튼'; } catch {}
+    await send(igId, token, to, msgText(`${textFor(rule.dm, rule, igId, who)}\n\n${title}: ${linkFor(rule, igId, who)}`));
     return '글자 링크';
   }
-  await privateReply(igId, token, commentId, tracking ? track(rule.dm, igId, rule.id) : rule.dm);
+  await send(igId, token, to, msgText(textFor(rule.dm, rule, igId, who)));
   return '';
 }
 
@@ -71,6 +82,7 @@ export async function POST(request) {
     for (const ch of changes) {
       if (ch.field === 'comments') jobs.push(handleComment(String(entry.id), ch.value));
     }
+    for (const m of entry.messaging || []) jobs.push(handleMessaging(String(entry.id), m));
   }
   await Promise.allSettled(jobs);
   return new Response('ok');
@@ -80,7 +92,8 @@ async function handleComment(igId, v) {
   if (!v?.id) return;
   const acc = await getAccount(igId);
   if (!acc) return;
-  if (String(v.from?.id) === igId) return; // 내 계정이 단 댓글(대댓글 포함)은 무시
+  const who = String(v.from?.id || '');
+  if (who === igId) return; // 내 계정이 단 댓글(대댓글 포함)은 무시
 
   const rules = (await getRules(igId)).filter((r) => r.on !== false);
   const text = norm(v.text);
@@ -91,15 +104,20 @@ async function handleComment(igId, v) {
   if (!rule) return;
   if (!(await claimComment(v.id))) return; // 이미 처리한 댓글
 
-  await bump(igId, rule.id, 'match');
+  await bump(igId, rule.id, 'match', who);
   const log = { user: v.from?.username || '', text: v.text, rule: rule.name || rule.keywords.join(', '), mediaId };
-  try {
-    log.mode = await sendDm(igId, acc.token, v.id, rule);
-    log.dm = 'ok';
-    await bump(igId, rule.id, 'dm_ok');
-  } catch (e) {
-    log.dm = 'fail: ' + e.message;
-    await bump(igId, rule.id, 'dm_fail');
+  if (rule.once !== false && who && !(await firstTime(igId, rule.id, who))) {
+    log.dm = 'skip'; // 같은 사람에게 이미 보냄
+  } else {
+    try {
+      log.mode = await sendFirst(igId, acc.token, v.id, rule, who);
+      log.dm = 'ok';
+      await bump(igId, rule.id, 'dm_ok', who);
+    } catch (e) {
+      log.dm = 'fail: ' + e.message;
+      await bump(igId, rule.id, 'dm_fail', who);
+      if (rule.once !== false && who) await redis.del(`sent:${igId}:${rule.id}:${who}`); // 실패하면 다음에 다시 보낼 수 있게
+    }
   }
   const replies = (rule.replies || []).filter(Boolean);
   if (replies.length) {
@@ -110,6 +128,36 @@ async function handleComment(igId, v) {
     } catch (e) {
       log.reply = 'fail: ' + e.message;
     }
+  }
+  await addLog(igId, log);
+}
+
+// '링크 받기'를 누르면 → 두 번째 DM(버튼) 보내기
+async function handleMessaging(igId, m) {
+  if (m.message?.is_echo) return;
+  const payload = m.message?.quick_reply?.payload || m.postback?.payload || '';
+  if (!payload.startsWith('R:')) return;
+  const who = String(m.sender?.id || '');
+  const acc = await getAccount(igId);
+  if (!acc || !who) return;
+  const rule = (await getRules(igId)).find((r) => r.id === payload.slice(2));
+  if (!rule) return;
+  const first = (await redis.set(`open:${igId}:${rule.id}:${who}`, 1, { nx: true, ex: 86400 })) === 'OK';
+  if (first) await bump(igId, rule.id, 'open', who);
+  const to = { id: who };
+  const log = { user: '(링크 받기 누름)', text: rule.openLabel || '링크 받기', rule: rule.name || rule.keywords.join(', ') };
+  try {
+    if (rule.btnUrl) {
+      const title = rule.btnTitle || '바로가기';
+      const text = (rule.dm2 || '아래 버튼을 눌러 확인해주세요 👇').slice(0, 640);
+      try { await send(igId, acc.token, to, msgButton(text, [{ type: 'web_url', url: linkFor(rule, igId, who), title }])); log.mode = '2단계 ②버튼'; }
+      catch { await send(igId, acc.token, to, msgText(`${text}\n\n${title}: ${linkFor(rule, igId, who)}`)); log.mode = '2단계 ②글자 링크'; }
+    } else if (rule.dm2) {
+      await send(igId, acc.token, to, msgText(textFor(rule.dm2, rule, igId, who))); log.mode = '2단계 ②';
+    }
+    log.dm = 'ok';
+  } catch (e) {
+    log.dm = 'fail: ' + e.message;
   }
   await addLog(igId, log);
 }

@@ -15,7 +15,7 @@ export async function GET(request) {
     const done = [], warn = [];
     for (const a of accounts) {
       const prev = await getAccount(a.igId);
-      await saveAccount({ ...a, token, expiresAt, connectedAt: prev?.connectedAt || Date.now() });
+      await saveAccount({ ...a, token, expiresAt, connectedAt: prev?.connectedAt || Date.now(), subV: 2 });
       try { await subscribeComments(a.igId, token); } catch (e) { warn.push(`@${a.username}: ${e.message}`); }
       done.push('@' + a.username);
     }
