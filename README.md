@@ -44,18 +44,21 @@ privacy.html         개인정보처리방침 (메타 앱 라이브 전환에 �
    - 카테고리를 선택하고 저장해요.
 8. 위쪽 **앱 모드**를 **라이브**로 바꿔요. 개발 모드에서는 실제 댓글 웹훅이 안 와요.
 
-## 4. Vercel 환경변수 (3개만)
+## 4. Vercel 환경변수
 
-Vercel 프로젝트 → **Settings → Environment Variables** 에 넣고 **Redeploy** 해요.
+| 이름 | 값 | 비밀? |
+|---|---|---|
+| `META_APP_ID` | 메타 앱 ID (앱 설정 > 기본 설정) | 아님 |
+| `META_LOGIN_CONFIG_ID` | 통합 로그인 구성 ID | 아님 |
+| `META_APP_SECRET` | 앱 시크릿 코드 (앱 설정 > 기본 설정 > 보기) | **비밀** |
+| `ADMIN_PASSWORD` | 관리 페이지 비밀번호 | **비밀** |
+| `BASE_URL` | 배포 주소 | 아님 |
 
-| 이름 | 값 |
-|---|---|
-| `IG_APP_ID` | Instagram 앱 ID |
-| `IG_APP_SECRET` | Instagram 앱 시크릿 코드 |
-| `ADMIN_PASSWORD` | 관리 페이지 비밀번호 (길게) |
+※ 2026년 10월 이후 만든 메타 앱은 'Instagram 로그인'을 못 쓰고 **통합 로그인**(Facebook Login for Business + 구성 ID)만 돼요.
+`META_LOGIN_CONFIG_ID`가 있으면 자동으로 통합 로그인 방식으로 동작해요. 토큰 만료도 없어요.
+예전 앱(Instagram 로그인)이면 `META_LOGIN_CONFIG_ID` 없이 `IG_APP_ID`/`IG_APP_SECRET`로 쓰면 돼요.
 
-배포 주소, 웹훅 확인 토큰, 모델 연결 코드는 자동으로 만들어져요.
-관리 페이지 → **⚙️ 메타 앱 설정값** 에서 리디렉션 URL / 웹훅 URL / 확인 토큰 / 개인정보처리방침 URL을 복사해서 3단계에 붙여넣으면 돼요.
+웹훅 확인 토큰, 모델 연결 코드는 자동이에요 → 관리 페이지 **⚙️ 메타 앱 설정값**에서 확인.
 
 ## 5. 모델 계정 연결
 

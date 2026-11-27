@@ -2,7 +2,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { getAccount, getRules, addLog, claimComment } from '../lib/store.js';
 import { privateReply, replyComment } from '../lib/ig.js';
-import { VERIFY_TOKEN } from '../lib/config.js';
+import { VERIFY_TOKEN, APP_SECRET } from '../lib/config.js';
 
 // 웹훅 주소 확인 (메타가 처음 등록할 때 호출)
 export async function GET(request) {
@@ -14,7 +14,7 @@ export async function GET(request) {
 
 function validSig(raw, header) {
   if (!header) return false;
-  const expected = 'sha256=' + createHmac('sha256', process.env.IG_APP_SECRET).update(raw).digest('hex');
+  const expected = 'sha256=' + createHmac('sha256', APP_SECRET()).update(raw).digest('hex');
   const a = Buffer.from(expected), b = Buffer.from(header);
   return a.length === b.length && timingSafeEqual(a, b);
 }

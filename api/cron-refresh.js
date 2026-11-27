@@ -2,10 +2,12 @@
 import { listAccounts, saveAccount } from '../lib/store.js';
 import { refreshToken } from '../lib/ig.js';
 import { json } from '../lib/http.js';
+import { isUnified } from '../lib/config.js';
 
 export async function GET(request) {
   const secret = process.env.CRON_SECRET;
   if (secret && request.headers.get('authorization') !== `Bearer ${secret}`) return json({ error: 'unauthorized' }, 401);
+  if (isUnified()) return json({ skipped: '통합 로그인 토큰은 만료가 없어요' });
   const out = [];
   for (const acc of await listAccounts()) {
     if (acc.expiresAt - Date.now() > 20 * 864e5) { out.push({ u: acc.username, skip: true }); continue; }

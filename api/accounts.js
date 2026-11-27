@@ -1,6 +1,6 @@
 import { listAccounts, removeAccount } from '../lib/store.js';
 import { json, isAdmin } from '../lib/http.js';
-import { BASE_URL, VERIFY_TOKEN, CONNECT_CODE } from '../lib/config.js';
+import { BASE_URL, VERIFY_TOKEN, CONNECT_CODE, APP_ID, APP_SECRET, isUnified } from '../lib/config.js';
 
 export async function GET(request) {
   if (!isAdmin(request)) return json({ error: '비밀번호가 틀렸어요' }, 401);
@@ -14,7 +14,8 @@ export async function GET(request) {
       webhookUrl: `${base}/api/webhook`,
       verifyToken: VERIFY_TOKEN(),
       privacyUrl: `${base}/privacy.html`,
-      hasApp: !!(process.env.IG_APP_ID && process.env.IG_APP_SECRET),
+      hasApp: !!(APP_ID() && APP_SECRET()),
+      unified: isUnified(),
       hasDb: !!(process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL),
     },
     accounts: accs

@@ -126,7 +126,7 @@ function render() {
   ${S.accounts.length ? `<div class="accs">${S.accounts.map((a) => `
     <button class="acc ${a.igId === S.cur ? 'on' : ''}" data-acc="${esc(a.igId)}">
       <span class="av" style="background-image:url('${esc(a.picture)}')"></span>
-      <span><b>@${esc(a.username)}</b><small>${a.refreshError ? '<span class="warn">토큰 갱신 실패 · 다시 연결 필요</span>' : `토큰 ${days(a.expiresAt)}일 남음`}</small></span>
+      <span><b>@${esc(a.username)}</b><small>${a.refreshError ? '<span class="warn">토큰 갱신 실패 · 다시 연결 필요</span>' : (days(a.expiresAt) > 3650 ? '연결됨' : `토큰 ${days(a.expiresAt)}일 남음`)}</small></span>
     </button>`).join('')}</div>` : `<div class="card empty">아직 연결된 계정이 없어요.<br><br>위의 <b>모델 연결 링크 복사</b>를 눌러 모델에게 보내주세요.<br>모델이 링크를 열고 인스타 로그인 → 허용하면 여기에 나타나요.</div>`}
   ${acc ? `
   <div class="tabs">
@@ -236,7 +236,7 @@ function showSetup() {
   const rows = [['리디렉션 URL (비즈니스 로그인 설정)', s.redirectUrl], ['웹훅 콜백 URL', s.webhookUrl], ['웹훅 확인 토큰', s.verifyToken], ['개인정보처리방침 URL', s.privacyUrl]];
   const d = $('#dlg');
   $('#dlgBody').innerHTML = `<h2 style="font-size:18px">메타 앱에 붙여넣을 값</h2>
-    ${!s.hasApp ? '<div class="warn">Vercel 환경변수에 IG_APP_ID / IG_APP_SECRET이 아직 없어요. 넣고 재배포하면 확인 토큰이 바뀌니 그다음에 복사하세요.</div>' : ''}
+    ${!s.hasApp ? '<div class="warn">Vercel 환경변수에 META_APP_SECRET(앱 시크릿 코드)이 아직 없어요. 넣고 재배포하면 확인 토큰이 바뀌니 그다음에 복사하세요.</div>' : ''}
     ${!s.hasDb ? '<div class="badc">DB(Upstash Redis)가 연결 안 돼 있어요.</div>' : ''}
     ${rows.map(([k, v], i) => `<label class="f">${esc(k)}<div class="row"><input value="${esc(v)}" readonly style="flex:1"><button data-cp="${i}">복사</button></div></label>`).join('')}
     <div class="row"><span class="sp"></span><button class="p" id="cN">닫기</button></div>`;
