@@ -6,7 +6,7 @@
 <title>자동 DM 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0e0f12;--panel:#17181d;--panel2:#1f2027;--line:#2b2d35;--ink:#f2f2f4;--sub:#9a9ca4;--acc:#e1306c;--ok:#2fbf71;--bad:#ff5a5f}
+:root{color-scheme:dark;--bg:#0e0f12;--panel:#17181d;--panel2:#1f2027;--line:#2b2d35;--ink:#f2f2f4;--sub:#9a9ca4;--acc:#e1306c;--ok:#2fbf71;--bad:#ff5a5f}
 *{box-sizing:border-box;min-width:0}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Noto Sans KR",system-ui,sans-serif}
 button,input,textarea,select{font:inherit;color:inherit}
@@ -47,9 +47,23 @@ th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertic
 th{color:var(--sub);font-weight:500;font-size:13px}
 .okc{color:var(--ok)}.badc{color:var(--bad)}
 .empty{text-align:center;color:var(--sub);padding:40px 16px}
-dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:18px;padding:0;width:min(640px,94vw);max-height:92vh}
+dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:18px;padding:0;width:min(640px,94vw);max-height:92vh;overflow:hidden}
 dialog::backdrop{background:rgba(0,0,0,.6)}
-.dlg{padding:20px;display:flex;flex-direction:column;gap:14px;overflow:auto;max-height:92vh}
+.dlg{padding:20px;display:flex;flex-direction:column;gap:14px;overflow:auto;max-height:calc(92vh - 2px)}
+.dlg.split{padding:0;gap:0;overflow:hidden}
+.dh{padding:18px 20px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.dh h2{flex:1}.dh .x{min-height:36px;width:36px;padding:0;background:transparent;font-size:20px;color:var(--sub)}
+.db{flex:1;overflow-y:auto;padding:16px 20px 20px;display:flex;flex-direction:column;gap:16px;overscroll-behavior:contain}
+.df{padding:12px 20px;border-top:1px solid var(--line);display:flex;align-items:center;gap:10px;background:var(--panel)}
+*{scrollbar-width:thin;scrollbar-color:#3a3c45 transparent}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#3a3c45;border-radius:8px}::-webkit-scrollbar-track{background:transparent}
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:7px 8px;min-height:46px;cursor:text}
+.chips:focus-within{outline:2px solid var(--acc);outline-offset:1px}
+.chips span{display:inline-flex;align-items:center;gap:4px;background:rgba(225,48,108,.18);color:#ff8ab0;border-radius:999px;padding:3px 6px 3px 11px;font-size:14px;font-weight:500}
+.chips span button{min-height:0;width:20px;height:20px;padding:0;border-radius:50%;background:transparent;color:inherit;font-size:14px;line-height:1}
+.chips span button:hover{background:rgba(255,255,255,.12)}
+.chips input{flex:1;min-width:120px;border:0;background:transparent;padding:4px;outline:none}
+.cnt{color:var(--sub);font-size:12px;text-align:right;margin-top:-2px}
 .dlg h2{margin:0;font-size:20px}
 label.f{display:flex;flex-direction:column;gap:6px;font-weight:500}
 label.f small{color:var(--sub);font-weight:400}
@@ -206,19 +220,45 @@ function renderTab() {
 async function openEditor(rule) {
   const r = rule ? JSON.parse(JSON.stringify(rule)) : { mediaId: 'all', keywords: [], dm: '', replies: [], name: '', on: true };
   const d = $('#dlg'), b = $('#dlgBody');
-  b.innerHTML = `<h2>${rule ? '규칙 수정' : '규칙 추가'}</h2>
+  b.classList.add('split');
+  b.innerHTML = `<div class="dh"><h2>${rule ? '규칙 수정' : '규칙 추가'}</h2><button class="x" id="fX" aria-label="닫기">✕</button></div>
+    <div class="db">
     <label class="f">이름 <small>나만 보는 메모용</small><input id="fName" value="${esc(r.name)}" placeholder="예: 코성형 정보 이벤트"></label>
     <div class="f" style="display:flex;flex-direction:column;gap:6px"><b style="font-weight:500">적용할 게시물</b>
       <div class="media" id="mGrid"><div class="empty" style="grid-column:1/-1;padding:16px">게시물 불러오는 중…</div></div></div>
-    <label class="f">키워드 <small>쉼표로 구분 · 댓글에 이 단어가 들어가면 발송 (띄어쓰기·대소문자 무시)</small>
-      <input id="fKw" value="${esc(r.keywords.join(', '))}" placeholder="예: 정보, 코성형정보"></label>
-    <label class="f">보낼 DM <small>댓글 단 사람에게 1번만 가요</small><textarea id="fDm" placeholder="DM 내용">${esc(r.dm)}</textarea></label>
+    <div class="f" style="display:flex;flex-direction:column;gap:6px"><b style="font-weight:500">키워드 <small class="muted" style="font-weight:400">입력하고 Enter · 댓글에 이 단어가 들어가면 발송 (띄어쓰기·대소문자 무시)</small></b>
+      <div class="chips" id="fKw"><input id="fKwIn" placeholder="예: 정보" enterkeyhint="done"></div></div>
+    <label class="f">보낼 DM <small>댓글 단 사람에게 1번만 가요</small><textarea id="fDm" placeholder="DM 내용" maxlength="1000">${esc(r.dm)}</textarea><div class="cnt" id="fDmCnt"></div></label>
     <label class="f">대댓글 (선택) <small>한 줄에 하나씩 · 여러 개면 랜덤으로 달려요</small>
       <textarea id="fRp" style="min-height:80px" placeholder="DM 보내드렸어요! 확인해주세요 💌">${esc((r.replies || []).join('\n'))}</textarea></label>
     <label class="row" style="gap:8px;font-weight:500"><input type="checkbox" id="fTrack" style="width:20px;height:20px" ${r.track !== false ? 'checked' : ''}> DM 속 링크 클릭 수 세기 <small class="muted">(링크가 추적용 주소로 바뀌어서 나가요)</small></label>
-    <div class="row"><span class="badc" id="fErr"></span><span class="sp"></span><button class="g" id="fCancel">취소</button><button class="p" id="fSave">저장</button></div>`;
+    </div>
+    <div class="df"><span class="badc" id="fErr" style="flex:1;font-size:14px"></span><button class="g" id="fCancel">취소</button><button class="p" id="fSave">저장</button></div>`;
   d.showModal();
-  $('#fCancel').onclick = () => d.close();
+  $('#fCancel').onclick = $('#fX').onclick = () => d.close();
+  // 키워드 칩
+  const kws = [...r.keywords];
+  const kwIn = $('#fKwIn');
+  const drawKw = () => {
+    $('#fKw').querySelectorAll('span').forEach((x) => x.remove());
+    kws.forEach((k, i) => {
+      const s = document.createElement('span'); s.textContent = k;
+      const x = document.createElement('button'); x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', k + ' 삭제');
+      x.onclick = (e) => { e.stopPropagation(); kws.splice(i, 1); drawKw(); };
+      s.appendChild(x); $('#fKw').insertBefore(s, kwIn);
+    });
+  };
+  const addKw = () => { kwIn.value.split(',').map((v) => v.trim()).filter(Boolean).forEach((v) => { if (!kws.includes(v)) kws.push(v); }); kwIn.value = ''; drawKw(); };
+  kwIn.onkeydown = (e) => {
+    if (e.isComposing) return;
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addKw(); }
+    else if (e.key === 'Backspace' && !kwIn.value && kws.length) { kws.pop(); drawKw(); }
+  };
+  kwIn.onblur = addKw;
+  $('#fKw').onclick = () => kwIn.focus();
+  drawKw();
+  const cnt = () => ($('#fDmCnt').textContent = `${$('#fDm').value.length} / 1000`);
+  $('#fDm').oninput = cnt; cnt();
 
   const grid = () => {
     const items = S.media || [];
@@ -237,7 +277,7 @@ async function openEditor(rule) {
 
   $('#fSave').onclick = async () => {
     r.name = $('#fName').value.trim();
-    r.keywords = $('#fKw').value.split(',').map((s) => s.trim()).filter(Boolean);
+    addKw(); r.keywords = [...kws];
     r.dm = $('#fDm').value.trim();
     r.replies = $('#fRp').value.split('\n').map((s) => s.trim()).filter(Boolean);
     r.track = $('#fTrack').checked;
@@ -317,6 +357,7 @@ function drawChart(svg, daily) {
 
 function showSetup() {
   const s = S.setup || {};
+  $('#dlgBody').classList.remove('split');
   const rows = [['리디렉션 URL (비즈니스 로그인 설정)', s.redirectUrl], ['웹훅 콜백 URL', s.webhookUrl], ['웹훅 확인 토큰', s.verifyToken], ['개인정보처리방침 URL', s.privacyUrl]];
   const d = $('#dlg');
   $('#dlgBody').innerHTML = `<h2 style="font-size:18px">메타 앱에 붙여넣을 값</h2>
@@ -330,12 +371,14 @@ function showSetup() {
 
 function confirmBox(msg, fn) {
   const d = $('#dlg');
+  $('#dlgBody').classList.remove('split');
   $('#dlgBody').innerHTML = `<h2 style="font-size:18px">${esc(msg)}</h2><div class="row"><span class="sp"></span><button class="g" id="cN">취소</button><button class="p" id="cY">확인</button></div>`;
   d.showModal(); $('#cN').onclick = () => d.close();
   $('#cY').onclick = async () => { try { await fn(); } catch (e) { toast(e.message); } d.close(); };
 }
 function showText(title, text) {
   const d = $('#dlg');
+  $('#dlgBody').classList.remove('split');
   $('#dlgBody').innerHTML = `<h2 style="font-size:18px">${esc(title)}</h2><input value="${esc(text)}" readonly onclick="this.select()"><div class="row"><span class="sp"></span><button class="p" id="cN">닫기</button></div>`;
   d.showModal(); $('#cN').onclick = () => d.close();
 }
